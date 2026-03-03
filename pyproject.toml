@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "wwise-agent"
+version = "0.1.0"
+description = "Wwise AI Agent — 嵌入式智能助手，通过 WAAPI 操控 Wwise Authoring Tool"
+requires-python = ">=3.10"
+dependencies = [
+    "waapi-client>=0.7",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "tiktoken>=0.7",
+]
+
+[project.scripts]
+wwise-agent = "launcher:main"

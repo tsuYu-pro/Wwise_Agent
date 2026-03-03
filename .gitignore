@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Cache
+cache/
+*.log
+
+# Config (local)
+config/*.ini
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lib (self-contained deps, tracked separately)
+# lib/
+
+# CodeBuddy
+.codebuddy/
