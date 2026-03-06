@@ -2,93 +2,35 @@
 """
 Wwise Backend — 工具执行器
 
-将 AI 的 Function Calling tool_call 分派到 wwise_mcp.tools.* 异步函数，
-通过 call_sync() 在 Agent 后台线程中同步执行。
+基于 skills/ 目录的自动发现机制执行工具。
+不再依赖 wwise_mcp 模块，所有 Wwise 操作通过本地 skills 完成。
 """
 
 import json
-import asyncio
 import logging
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict
+
+from ..skills import list_skills, run_skill
 
 logger = logging.getLogger("wwise_agent.backend")
 
+# 文档检索模块（延迟加载）
+HAS_DOC_RAG = False
+get_doc_rag = None
+
+try:
+    from .doc_rag import get_doc_index as get_doc_rag
+    HAS_DOC_RAG = True
+except ImportError:
+    pass
+
 
 class WwiseToolExecutor:
-    """Wwise 工具执行器 — 替代 Houdini-Agent 中的 HoudiniMCP 角色。
+    """Wwise 工具执行器 — 基于 Skills 系统。
 
-    所有 wwise_mcp 工具函数都是 async def，本执行器通过
-    ``asyncio.run()`` 或已有事件循环的 ``run_until_complete()``
-    将其转为同步调用，供 Agent 后台线程使用。
+    所有 Wwise 工具都是 skills/ 目录下的独立模块，
+    通过 run_skill() 同步调用，供 Agent 后台线程使用。
     """
-
-    # ---- 工具名 → 异步函数的映射 ----
-    _TOOL_MAP: Dict[str, Callable[..., Any]] = {}
-
-    def __init__(self):
-        if not self._TOOL_MAP:
-            self._build_tool_map()
-
-    @classmethod
-    def _build_tool_map(cls):
-        """延迟构建工具映射（避免导入时循环依赖）"""
-        from wwise_mcp.tools.query import (
-            get_project_hierarchy,
-            get_object_properties,
-            search_objects,
-            get_bus_topology,
-            get_event_actions,
-            get_soundbank_info,
-            get_rtpc_list,
-            get_selected_objects,
-            get_effect_chain,
-        )
-        from wwise_mcp.tools.action import (
-            create_object,
-            set_property,
-            create_event,
-            assign_bus,
-            delete_object,
-            move_object,
-            preview_event,
-            set_rtpc_binding,
-            add_effect,
-            remove_effect,
-        )
-        from wwise_mcp.tools.verify import (
-            verify_structure,
-            verify_event_completeness,
-        )
-        from wwise_mcp.tools.fallback import execute_waapi
-
-        cls._TOOL_MAP = {
-            # Query (9)
-            "get_project_hierarchy": get_project_hierarchy,
-            "get_object_properties": get_object_properties,
-            "search_objects": search_objects,
-            "get_bus_topology": get_bus_topology,
-            "get_event_actions": get_event_actions,
-            "get_soundbank_info": get_soundbank_info,
-            "get_rtpc_list": get_rtpc_list,
-            "get_selected_objects": get_selected_objects,
-            "get_effect_chain": get_effect_chain,
-            # Action (10)
-            "create_object": create_object,
-            "set_property": set_property,
-            "create_event": create_event,
-            "assign_bus": assign_bus,
-            "delete_object": delete_object,
-            "move_object": move_object,
-            "preview_event": preview_event,
-            "set_rtpc_binding": set_rtpc_binding,
-            "add_effect": add_effect,
-            "remove_effect": remove_effect,
-            # Verify (2)
-            "verify_structure": verify_structure,
-            "verify_event_completeness": verify_event_completeness,
-            # Fallback (1)
-            "execute_waapi": execute_waapi,
-        }
 
     # ------------------------------------------------------------------ #
     # 同步执行入口（供 AIClient.agent_loop 的 tool_executor 回调使用）
@@ -97,28 +39,11 @@ class WwiseToolExecutor:
     def execute(self, tool_name: str, **kwargs) -> dict:
         """同步执行工具（从后台线程调用）
 
-        返回格式与 Houdini-Agent 兼容::
+        返回格式::
             {"success": True/False, "result": str, "error": str}
         """
-        func = self._TOOL_MAP.get(tool_name)
-        if func is None:
-            return {"success": False, "error": f"未知工具: {tool_name}"}
-
         try:
-            # 优先使用现有事件循环（Wwise Agent 主线程可能已有）
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # 在已有事件循环中，用 run_coroutine_threadsafe
-                import concurrent.futures
-                future = asyncio.run_coroutine_threadsafe(func(**kwargs), loop)
-                raw = future.result(timeout=60)
-            else:
-                raw = asyncio.run(func(**kwargs))
-
+            raw = run_skill(tool_name, kwargs)
         except Exception as e:
             logger.error("工具 %s 执行异常: %s", tool_name, e, exc_info=True)
             return {"success": False, "error": str(e)}
@@ -126,17 +51,63 @@ class WwiseToolExecutor:
         # 统一转换返回格式
         return self._normalize(raw, tool_name)
 
+    def execute_tool(self, tool_name: str, kwargs: dict) -> dict:
+        """兼容接口 — ai_tab.py 中使用 mcp.execute_tool(name, kwargs)"""
+        return self.execute(tool_name, **kwargs)
+
+    # ------------------------------------------------------------------ #
+    # 元工具：list_skills / run_skill
+    # ------------------------------------------------------------------ #
+
+    def handle_list_skills(self) -> dict:
+        """返回所有可用 skill 的元数据"""
+        skills = list_skills()
+        return {"success": True, "result": json.dumps(skills, ensure_ascii=False, indent=2)}
+
+    def handle_run_skill(self, skill_name: str, params: dict = None) -> dict:
+        """执行指定 skill"""
+        if params is None:
+            params = {}
+        try:
+            raw = run_skill(skill_name, params)
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+        return self._normalize(raw, skill_name)
+
+    def handle_search_local_doc(self, query: str, top_k: int = 5) -> dict:
+        """搜索本地 Wwise 文档索引"""
+        if not HAS_DOC_RAG or get_doc_rag is None:
+            return {"success": False, "error": "DocIndex 模块未加载"}
+        if not query:
+            return {"success": False, "error": "缺少 query 参数"}
+        try:
+            index = get_doc_rag()
+            results = index.search(query, top_k=min(top_k, 10))
+            if not results:
+                return {"success": True, "result": f"未找到与 '{query}' 相关的文档"}
+            parts = [f"找到 {len(results)} 个相关条目:\n"]
+            for idx, r in enumerate(results, 1):
+                parts.append(f"{idx}. [{r['type'].upper()}] {r['name']} (score={r['score']:.1f})")
+                parts.append(f"   {r['snippet']}\n")
+            return {"success": True, "result": "\n".join(parts)}
+        except Exception as e:
+            return {"success": False, "error": f"文档搜索异常: {e}"}
+
     # ------------------------------------------------------------------ #
     # 格式标准化
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _normalize(raw: dict, tool_name: str) -> dict:
-        """将 wwise_mcp 的 {success, data, error} 转为
+        """将 skill 返回的 {success, data, error} 转为
         AIClient 期望的 {success, result, error} 字符串格式。
         """
         if not isinstance(raw, dict):
             return {"success": False, "error": f"工具 {tool_name} 返回了非 dict 类型: {type(raw)}"}
+
+        # skill 返回 {"error": "..."} 的简单错误格式
+        if "error" in raw and "success" not in raw:
+            return {"success": False, "error": raw["error"]}
 
         success = raw.get("success", False)
 

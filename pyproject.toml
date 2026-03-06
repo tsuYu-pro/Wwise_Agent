@@ -13,9 +13,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
 dev = [
     "tiktoken>=0.7",
 ]
 
 [project.scripts]
 wwise-agent = "launcher:main"
+wwise-mcp = "wwise_mcp.server:main"

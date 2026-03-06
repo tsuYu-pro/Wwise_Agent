@@ -783,6 +783,40 @@ WWISE_TOOLS = [
             }
         }
     },
+    # ---- Skill 元工具 (2) ----
+    {
+        "type": "function",
+        "function": {
+            "name": "list_skills",
+            "description": "列出所有可用的 Wwise Skill（高级分析 / 批量操作工具）。调用前先查看有哪些可用。",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_skill",
+            "description": "执行指定的 Wwise Skill。先调用 list_skills 查看可用 skill 及其参数。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {
+                        "type": "string",
+                        "description": "Skill 名称（从 list_skills 获取）"
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "传给 Skill 的参数字典"
+                    }
+                },
+                "required": ["skill_name"]
+            }
+        }
+    },
     # ---- 共享工具 (4) ----
     {
         "type": "function",
@@ -924,6 +958,7 @@ class AIClient:
         'get_event_actions', 'get_soundbank_info',
         'get_rtpc_list', 'get_selected_objects', 'get_effect_chain',
         'verify_structure', 'verify_event_completeness',
+        'search_local_doc',
         'web_search', 'fetch_webpage',
     })
     _OP_TOOLS = frozenset({
@@ -2627,6 +2662,7 @@ class AIClient:
                 'get_bus_topology', 'get_event_actions', 'get_soundbank_info',
                 'get_rtpc_list', 'get_selected_objects', 'get_effect_chain',
                 'verify_structure', 'verify_event_completeness',
+                'search_local_doc', 'list_skills',
             })
             
             # Web 工具可并行，Wwise 工具串行（WAAPI WebSocket 非线程安全）

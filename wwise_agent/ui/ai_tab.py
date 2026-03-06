@@ -496,6 +496,35 @@ class AITab(
             pass
         return ctx
 
+    def _auto_rag_retrieve(self, user_text: str, scene_context: dict = None,
+                           conversation_len: int = 0) -> str:
+        """自动 RAG: 从用户消息 + Wwise 场景上下文检索文档并注入
+
+        在后台线程调用，不涉及 Qt 控件。
+        """
+        try:
+            from ..utils.doc_rag import get_doc_index
+            index = get_doc_index()
+
+            # 动态调整 RAG 注入量
+            if conversation_len > 20:
+                max_chars = 400
+            elif conversation_len > 10:
+                max_chars = 800
+            else:
+                max_chars = 1200
+
+            # 场景上下文增强
+            enriched_query = user_text
+            if scene_context:
+                selected_types = scene_context.get('selected_types', [])
+                if selected_types:
+                    enriched_query += ' ' + ' '.join(selected_types)
+
+            return index.auto_retrieve(enriched_query, max_chars=max_chars)
+        except Exception:
+            return ""
+
     # ==========================================================
     # 系统提示词
     # ==========================================================
@@ -542,6 +571,24 @@ Wwise Object Path Rules:
 -Paths start with a top-level category: \\Actor-Mixer Hierarchy\\..., \\Events\\..., \\Switches\\..., etc.
 -Object paths are automatically converted to clickable links for navigation.
 
+WAAPI Documentation & search_local_doc Usage:
+-A local Wwise documentation index is available. Common WAAPI references are auto-injected into context.
+-When you need detailed info about a WAAPI function, object type, or Wwise concept, call search_local_doc(query="...") FIRST before guessing.
+-Never guess WAAPI function signatures or object properties. Always verify via search_local_doc or web_search.
+"""
+
+        # Inject WAAPI catalog (so AI knows what functions exist)
+        try:
+            from ..utils.doc_rag import get_doc_index
+            waapi_catalog = get_doc_index().get_waapi_catalog()
+            if waapi_catalog:
+                base_prompt += f"""
+{waapi_catalog}
+"""
+        except Exception:
+            pass
+
+        base_prompt += """
 Fake Tool Call Prevention:
 -NEVER write text that looks like tool execution results in your reply.
 -If you need information, MUST actually call a tool via function calling.
@@ -1523,6 +1570,20 @@ Memory System:
                 self._updateTodo.emit(todo_id, "", status)
                 return {"success": True, "result": f"Updated todo {todo_id} to {status}"}
             
+            # 文档检索工具
+            if tool_name == "search_local_doc":
+                query = kwargs.get("query", "")
+                top_k = kwargs.get("top_k", 5)
+                return self.mcp.handle_search_local_doc(query, top_k)
+            
+            # Skill 元工具
+            if tool_name == "list_skills":
+                return self.mcp.handle_list_skills()
+            elif tool_name == "run_skill":
+                skill_name = kwargs.get("skill_name", "")
+                params = kwargs.get("params", {})
+                return self.mcp.handle_run_skill(skill_name, params)
+            
             # WAAPI 工具 — 全部可以在后台线程执行
             if tool_name in self._BG_SAFE_TOOLS:
                 return self._execute_tool_in_bg(tool_name, kwargs)
@@ -2182,6 +2243,18 @@ Memory System:
             except Exception as e:
                 print(f"[Memory] Context injection failed: {e}")
             
+            # ★ 自动 RAG：从文档索引检索注入上下文
+            try:
+                if user_query:
+                    rag_context = self._auto_rag_retrieve(
+                        user_query, scene_context=scene_context,
+                        conversation_len=len(self._conversation_history)
+                    )
+                    if rag_context:
+                        messages.append({'role': 'system', 'content': rag_context})
+            except Exception as e:
+                print(f"[DocRAG] Auto retrieve failed: {e}")
+            
             # ★ Plan 执行阶段：注入 Plan 上下文
             if plan_mode and plan_executing:
                 try:
@@ -2517,9 +2590,36 @@ Memory System:
         except (RuntimeError, AttributeError):
             pass
 
-    # ===== 更新检查（占位） =====
+    # ===== 更新信号 =====
+    _updateCheckDone = QtCore.Signal(dict)
+    _updateApplyDone = QtCore.Signal(dict)
+    _updateProgress = QtCore.Signal(str, int)
+
+    # ===== 更新检查 =====
     def _silent_update_check(self):
-        pass
+        """启动时静默检查更新（不弹窗，只在有更新时高亮按钮）"""
+        try:
+            self._updateCheckDone.connect(self._on_silent_check_result, QtCore.Qt.UniqueConnection)
+        except RuntimeError:
+            pass
+        threading.Thread(target=self._bg_check_update, daemon=True).start()
+
+    @QtCore.Slot(dict)
+    def _on_silent_check_result(self, result: dict):
+        """[主线程] 静默检查结果 → 如果有更新，高亮 Update 按钮"""
+        try:
+            self._updateCheckDone.disconnect(self._on_silent_check_result)
+        except RuntimeError:
+            pass
+
+        if result.get('has_update') and result.get('remote_version'):
+            remote_ver = result['remote_version']
+            self.btn_update.setText(f"v{remote_ver}")
+            self.btn_update.setToolTip(f"发现新版本 v{remote_ver}，点击更新")
+            self.btn_update.setProperty("state", "available")
+            self.btn_update.style().unpolish(self.btn_update)
+            self.btn_update.style().polish(self.btn_update)
+            self._cached_update_result = result
 
     # ===== 缓存菜单 =====
     def _on_cache_menu(self):
@@ -2535,7 +2635,164 @@ Memory System:
 
     # ===== 检查更新 =====
     def _on_check_update(self):
-        pass
+        """点击 Update 按钮 → 后台检查更新"""
+        cached = getattr(self, '_cached_update_result', None)
+        if cached and cached.get('has_update'):
+            self._on_update_check_result(cached)
+            self._cached_update_result = None
+            return
+
+        self.btn_update.setEnabled(False)
+        self.btn_update.setText("检查中…")
+
+        try:
+            self._updateCheckDone.connect(self._on_update_check_result, QtCore.Qt.UniqueConnection)
+        except RuntimeError:
+            pass
+
+        threading.Thread(target=self._bg_check_update, daemon=True).start()
+
+    def _bg_check_update(self):
+        """[后台线程] 调用 updater.check_update"""
+        try:
+            from ..utils.updater import check_update
+            result = check_update()
+        except Exception as e:
+            result = {'has_update': False, 'error': str(e), 'local_version': '?', 'remote_version': ''}
+        self._updateCheckDone.emit(result)
+
+    @QtCore.Slot(dict)
+    def _on_update_check_result(self, result: dict):
+        """[主线程] 处理检查结果"""
+        self.btn_update.setEnabled(True)
+        self.btn_update.setText("Update")
+        self.btn_update.setProperty("state", "")
+        self.btn_update.style().unpolish(self.btn_update)
+        self.btn_update.style().polish(self.btn_update)
+
+        if result.get('error'):
+            QtWidgets.QMessageBox.warning(self, "检查更新", f"检查更新失败:\n{result['error']}")
+            return
+
+        local_ver = result.get('local_version', '?')
+        remote_ver = result.get('remote_version', '?')
+        release_name = result.get('release_name', '')
+        release_notes = result.get('release_notes', '')
+
+        if not result.get('has_update'):
+            QtWidgets.QMessageBox.information(
+                self, "检查更新",
+                f"当前已是最新版本\n\n"
+                f"本地版本: v{local_ver}\n"
+                f"最新 Release: v{remote_ver}"
+            )
+            return
+
+        detail = f"本地版本: v{local_ver}\n最新 Release: v{remote_ver}"
+        if release_name:
+            detail += f"\n版本名称: {release_name}"
+        if release_notes:
+            detail += f"\n更新说明: {release_notes}"
+        detail += "\n\n更新后应用将自动重启。\n（config、cache 目录不会被覆盖）"
+
+        reply = QtWidgets.QMessageBox.question(
+            self, "发现新版本",
+            f"发现新版本 v{remote_ver}，是否立即更新？\n\n{detail}",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel,
+            QtWidgets.QMessageBox.Cancel,
+        )
+
+        if reply == QtWidgets.QMessageBox.Yes:
+            self._start_update()
+
+    def _start_update(self):
+        """开始下载并应用更新"""
+        self._update_progress_dlg = QtWidgets.QProgressDialog(
+            "正在下载更新…", "取消", 0, 100, self
+        )
+        self._update_progress_dlg.setWindowTitle("更新 Wwise Agent")
+        self._update_progress_dlg.setWindowModality(QtCore.Qt.WindowModal)
+        self._update_progress_dlg.setAutoClose(False)
+        self._update_progress_dlg.setAutoReset(False)
+        self._update_progress_dlg.setMinimumDuration(0)
+        self._update_progress_dlg.setValue(0)
+
+        try:
+            self._updateProgress.connect(self._on_update_progress, QtCore.Qt.UniqueConnection)
+            self._updateApplyDone.connect(self._on_update_apply_result, QtCore.Qt.UniqueConnection)
+        except RuntimeError:
+            pass
+
+        threading.Thread(target=self._bg_download_and_apply, daemon=True).start()
+
+    def _bg_download_and_apply(self):
+        """[后台线程] 下载并应用更新"""
+        try:
+            from ..utils.updater import download_and_apply
+            result = download_and_apply(progress_callback=self._update_progress_cb)
+        except Exception as e:
+            result = {'success': False, 'error': str(e), 'updated_files': 0}
+        self._updateApplyDone.emit(result)
+
+    def _update_progress_cb(self, stage: str, percent: int):
+        """进度回调（从后台线程调用 → 通过信号到主线程）"""
+        self._updateProgress.emit(stage, percent)
+
+    @QtCore.Slot(str, int)
+    def _on_update_progress(self, stage: str, percent: int):
+        """[主线程] 更新进度条"""
+        if not hasattr(self, '_update_progress_dlg') or self._update_progress_dlg is None:
+            return
+
+        stage_labels = {
+            'downloading': '正在下载…',
+            'extracting': '正在解压…',
+            'applying': '正在更新文件…',
+            'done': '更新完成！',
+        }
+        label = stage_labels.get(stage, stage)
+        self._update_progress_dlg.setLabelText(f"{label} ({percent}%)")
+        self._update_progress_dlg.setValue(percent)
+
+    @QtCore.Slot(dict)
+    def _on_update_apply_result(self, result: dict):
+        """[主线程] 更新完成后的处理"""
+        if hasattr(self, '_update_progress_dlg') and self._update_progress_dlg:
+            self._update_progress_dlg.close()
+            self._update_progress_dlg = None
+
+        if not result.get('success'):
+            QtWidgets.QMessageBox.critical(
+                self, "更新失败",
+                f"更新过程中出现错误:\n{result.get('error', '未知错误')}"
+            )
+            return
+
+        updated = result.get('updated_files', 0)
+
+        QtWidgets.QMessageBox.information(
+            self, "更新成功",
+            f"已成功更新 {updated} 个文件！\n\n点击 OK 重启应用。",
+            QtWidgets.QMessageBox.Ok,
+        )
+
+        QtCore.QTimer.singleShot(200, self._do_restart)
+
+    def _do_restart(self):
+        """执行应用重启"""
+        try:
+            main_win = self.window()
+            if hasattr(main_win, '_save_workspace'):
+                main_win._save_workspace()
+
+            from ..utils.updater import restart_app
+            restart_app()
+        except Exception as e:
+            print(f"[Updater] Restart error: {e}")
+            QtWidgets.QMessageBox.warning(
+                self, "重启失败",
+                f"自动重启失败，请手动关闭并重新打开应用。\n\n错误: {e}"
+            )
 
     # ==========================================================
     # 核心交互方法

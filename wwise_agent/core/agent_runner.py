@@ -34,6 +34,8 @@ class AgentRunnerMixin:
         'remove_effect',
         # 原始 WAAPI（兜底）
         'execute_waapi',
+        # Skill 执行（可能做修改操作）
+        'run_skill',
     })
 
     # 不需要 Wwise 主线程的工具集合
@@ -62,6 +64,11 @@ class AgentRunnerMixin:
         'verify_structure',
         'verify_event_completeness',
         'execute_waapi',
+        # Skill 元工具
+        'run_skill',
+        'list_skills',
+        # 文档检索
+        'search_local_doc',
         # 系统工具
         'web_search',
         'fetch_webpage',
@@ -88,6 +95,10 @@ class AgentRunnerMixin:
         # 验证 (2)
         'verify_structure',
         'verify_event_completeness',
+        # Skill 元工具（只读）
+        'list_skills',
+        # 文档检索
+        'search_local_doc',
         # 联网搜索
         'web_search',
         'fetch_webpage',
@@ -110,6 +121,10 @@ class AgentRunnerMixin:
         'get_effect_chain',
         'verify_structure',
         'verify_event_completeness',
+        # Skill 元工具（只读）
+        'list_skills',
+        # 文档检索
+        'search_local_doc',
         # 文档 & 搜索
         'web_search',
         'fetch_webpage',
