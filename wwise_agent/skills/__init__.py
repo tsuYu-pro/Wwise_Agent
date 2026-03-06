@@ -33,8 +33,10 @@ def _load_all():
         module_name = f.stem
         try:
             spec = importlib.util.spec_from_file_location(
-                f"wwise_skills.{module_name}", str(f))
+                f"wwise_agent.skills.{module_name}", str(f),
+                submodule_search_locations=[])
             mod = importlib.util.module_from_spec(spec)
+            mod.__package__ = "wwise_agent.skills"
             spec.loader.exec_module(mod)
 
             info = getattr(mod, "SKILL_INFO", None)
