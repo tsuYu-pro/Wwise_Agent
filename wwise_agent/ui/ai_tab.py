@@ -2623,15 +2623,391 @@ Memory System:
 
     # ===== 缓存菜单 =====
     def _on_cache_menu(self):
-        pass
+        """显示缓存菜单"""
+        menu = QtWidgets.QMenu(self)
+
+        archive_action = menu.addAction("存档当前对话")
+        archive_action.triggered.connect(self._archive_cache)
+
+        load_action = menu.addAction("加载对话...")
+        load_action.triggered.connect(self._load_cache_dialog)
+
+        menu.addSeparator()
+
+        compress_action = menu.addAction("压缩旧对话为摘要")
+        compress_action.triggered.connect(self._compress_to_summary)
+
+        list_action = menu.addAction("查看所有缓存")
+        list_action.triggered.connect(self._list_caches)
+
+        menu.addSeparator()
+
+        auto_save_action = menu.addAction("[on] 自动保存" if self._auto_save_cache else "自动保存")
+        auto_save_action.setCheckable(True)
+        auto_save_action.setChecked(self._auto_save_cache)
+        auto_save_action.triggered.connect(lambda: setattr(self, '_auto_save_cache', not self._auto_save_cache))
+
+        menu.exec_(self.btn_cache.mapToGlobal(QtCore.QPoint(0, self.btn_cache.height())))
+
+    def _archive_cache(self) -> bool:
+        """手动存档：创建带时间戳的独立文件（不会被覆写）"""
+        if not self._conversation_history:
+            QtWidgets.QMessageBox.information(self, "提示", "没有对话历史可存档")
+            return False
+        try:
+            cache_data = self._build_cache_data()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"archive_{self._session_id}_{timestamp}.json"
+            archive_file = self._cache_dir / filename
+            with open(archive_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            est = cache_data.get('estimated_tokens', 0)
+            self._addStatus.emit(f"已存档: {filename} (~{est} tokens)")
+            return True
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "错误", f"存档失败: {str(e)}")
+            return False
+
+    def _load_cache_dialog(self):
+        """显示加载缓存对话框"""
+        cache_files = sorted(
+            set(self._cache_dir.glob("session_*.json"))
+            | set(self._cache_dir.glob("archive_*.json"))
+            | set(self._cache_dir.glob("cache_*.json")),
+            key=lambda p: p.stat().st_mtime, reverse=True
+        )
+
+        if not cache_files:
+            QtWidgets.QMessageBox.information(self, "提示", "没有找到缓存文件")
+            return
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("选择缓存文件")
+        dialog.setMinimumWidth(500)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        list_widget = QtWidgets.QListWidget()
+        for cf in cache_files:
+            try:
+                with open(cf, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    msg_count = len(data.get('conversation_history', []))
+                    estimated_tokens = data.get('estimated_tokens', 0)
+                    created_at = data.get('created_at', '')
+                    if created_at:
+                        try:
+                            dt = datetime.fromisoformat(created_at)
+                            created_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            pass
+                    token_info = f" | ~{estimated_tokens:,} tokens" if estimated_tokens else ""
+                    item_text = f"{cf.name}\n  {msg_count} 条消息{token_info} | {created_at}"
+            except Exception:
+                item_text = cf.name
+
+            item = QtWidgets.QListWidgetItem(item_text)
+            item.setData(QtCore.Qt.UserRole, cf)
+            list_widget.addItem(item)
+
+        layout.addWidget(QtWidgets.QLabel("选择要加载的缓存文件:"))
+        layout.addWidget(list_widget)
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_load = QtWidgets.QPushButton("加载")
+        btn_cancel = QtWidgets.QPushButton("取消")
+        btn_layout.addWidget(btn_load)
+        btn_layout.addWidget(btn_cancel)
+        layout.addLayout(btn_layout)
+
+        def on_load():
+            current = list_widget.currentItem()
+            if current:
+                cache_file = current.data(QtCore.Qt.UserRole)
+                if self._load_cache(cache_file):
+                    dialog.accept()
+
+        btn_load.clicked.connect(on_load)
+        btn_cancel.clicked.connect(dialog.reject)
+
+        dialog.exec_()
+
+    def _list_caches(self):
+        """列出所有缓存文件"""
+        cache_files = sorted(
+            set(self._cache_dir.glob("session_*.json"))
+            | set(self._cache_dir.glob("archive_*.json"))
+            | set(self._cache_dir.glob("cache_*.json")),
+            key=lambda p: p.stat().st_mtime, reverse=True
+        )
+
+        if not cache_files:
+            QtWidgets.QMessageBox.information(self, "提示", "没有找到缓存文件")
+            return
+
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("缓存文件列表")
+        dialog.setMinimumSize(600, 400)
+
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        text_edit = QtWidgets.QTextEdit()
+        text_edit.setReadOnly(True)
+
+        lines = ["缓存文件列表:\n"]
+        for cf in cache_files:
+            try:
+                with open(cf, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    msg_count = len(data.get('conversation_history', []))
+                    created_at = data.get('created_at', '')
+                    session_id = data.get('session_id', '')
+                    estimated_tokens = data.get('estimated_tokens', 0)
+
+                    if created_at:
+                        try:
+                            dt = datetime.fromisoformat(created_at)
+                            created_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            pass
+
+                    size_kb = cf.stat().st_size / 1024
+                    lines.append(f"  {cf.name}")
+                    lines.append(f"   会话ID: {session_id}")
+                    lines.append(f"   消息数: {msg_count}")
+                    if estimated_tokens:
+                        lines.append(f"   估算Token: ~{estimated_tokens:,}")
+                    lines.append(f"   创建时间: {created_at}")
+                    lines.append(f"   文件大小: {size_kb:.1f} KB")
+                    lines.append("")
+            except Exception as e:
+                lines.append(f"[err] {cf.name} (读取失败: {str(e)})")
+                lines.append("")
+
+        text_edit.setPlainText("\n".join(lines))
+        layout.addWidget(text_edit)
+
+        btn_close = QtWidgets.QPushButton("关闭")
+        btn_close.clicked.connect(dialog.accept)
+        layout.addWidget(btn_close)
+
+        dialog.exec_()
+
+    def _compress_to_summary(self):
+        """将旧对话压缩为摘要，减少 token 消耗"""
+        if len(self._conversation_history) <= 4:
+            QtWidgets.QMessageBox.information(self, "提示", "对话历史太短，无需压缩")
+            return
+
+        reply = QtWidgets.QMessageBox.question(
+            self, "确认压缩",
+            f"将把前 {len(self._conversation_history) - 4} 条对话压缩为摘要，"
+            f"保留最近 4 条完整对话。\n\n"
+            f"这样可以大幅减少 token 消耗。是否继续？",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+
+        if reply != QtWidgets.QMessageBox.Yes:
+            return
+
+        old_messages = self._conversation_history[:-4]
+        recent_messages = self._conversation_history[-4:]
+
+        summary_parts = ["[历史对话摘要 - 已压缩以节省 token]"]
+
+        user_requests = []
+        ai_results = []
+
+        for msg in old_messages:
+            role = msg.get('role', '')
+            content = msg.get('content', '')
+
+            if role == 'user':
+                user_request = content[:200].replace('\n', ' ')
+                if len(content) > 200:
+                    user_request += "..."
+                user_requests.append(user_request)
+
+            elif role == 'assistant' and content:
+                lines = [l.strip() for l in content.split('\n') if l.strip()]
+                if lines:
+                    result_summary = lines[-1][:150].replace('\n', ' ')
+                    if len(lines[-1]) > 150:
+                        result_summary += "..."
+                    ai_results.append(result_summary)
+
+        if user_requests:
+            summary_parts.append(f"\n用户请求 ({len(user_requests)} 条):")
+            for i, req in enumerate(user_requests[:10], 1):
+                summary_parts.append(f"  {i}. {req}")
+            if len(user_requests) > 10:
+                summary_parts.append(f"  ... 还有 {len(user_requests) - 10} 条请求")
+
+        if ai_results:
+            summary_parts.append(f"\nAI 完成的任务 ({len(ai_results)} 条):")
+            for i, res in enumerate(ai_results[:10], 1):
+                summary_parts.append(f"  {i}. {res}")
+            if len(ai_results) > 10:
+                summary_parts.append(f"  ... 还有 {len(ai_results) - 10} 条结果")
+
+        summary_text = "\n".join(summary_parts)
+
+        self._conversation_history = [
+            {'role': 'system', 'content': summary_text}
+        ] + recent_messages
+
+        self._context_summary = summary_text
+
+        self._render_conversation_history()
+        self._update_context_stats()
+
+        self._addStatus.emit(f"已压缩 {len(old_messages)} 条旧消息为摘要")
 
     # ===== 优化菜单 =====
     def _on_optimize_menu(self):
-        pass
+        """显示 Token 优化菜单"""
+        menu = QtWidgets.QMenu(self)
+
+        optimize_now_action = menu.addAction("立即压缩对话")
+        optimize_now_action.triggered.connect(self._optimize_now)
+
+        menu.addSeparator()
+
+        auto_label = "自动压缩 [on]" if self._auto_optimize else "自动压缩"
+        auto_opt_action = menu.addAction(auto_label)
+        auto_opt_action.setCheckable(True)
+        auto_opt_action.setChecked(self._auto_optimize)
+        auto_opt_action.triggered.connect(lambda: setattr(self, '_auto_optimize', not self._auto_optimize))
+
+        menu.addSeparator()
+
+        strategy_menu = menu.addMenu("压缩策略")
+        for label, strat in [
+            ("激进 (最大节省)", CompressionStrategy.AGGRESSIVE),
+            ("平衡 (推荐)", CompressionStrategy.BALANCED),
+            ("保守 (保留细节)", CompressionStrategy.CONSERVATIVE),
+        ]:
+            action = strategy_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(self._optimization_strategy == strat)
+            action.triggered.connect(lambda _, s=strat: setattr(self, '_optimization_strategy', s))
+
+        menu.exec_(self.btn_optimize.mapToGlobal(QtCore.QPoint(0, self.btn_optimize.height())))
+
+    def _optimize_now(self):
+        """立即优化当前对话"""
+        if len(self._conversation_history) <= 4:
+            QtWidgets.QMessageBox.information(self, "提示", "对话历史太短，无需优化")
+            return
+
+        before_tokens = self._calculate_context_tokens()
+
+        compressed_messages, stats = self.token_optimizer.compress_messages(
+            self._conversation_history,
+            strategy=self._optimization_strategy
+        )
+
+        if stats['saved_tokens'] > 0:
+            self._conversation_history = compressed_messages
+            self._context_summary = compressed_messages[0].get('content', '') if compressed_messages and compressed_messages[0].get('role') == 'system' else self._context_summary
+
+            self._render_conversation_history()
+            self._update_context_stats()
+
+            saved_percent = stats.get('saved_percent', 0)
+            QtWidgets.QMessageBox.information(
+                self, "优化完成",
+                f"对话已优化！\n\n"
+                f"原始: ~{before_tokens:,} tokens\n"
+                f"优化后: ~{stats['compressed_tokens']:,} tokens\n"
+                f"节省: ~{stats['saved_tokens']:,} tokens ({saved_percent:.1f}%)\n\n"
+                f"压缩了 {stats['compressed']} 条消息，保留 {stats['kept']} 条"
+            )
+        else:
+            QtWidgets.QMessageBox.information(self, "提示", "无需优化，对话历史已经很精简")
 
     # ===== 导出训练数据 =====
     def _on_export_training_data(self):
-        pass
+        """导出当前对话为训练数据"""
+        if not self._conversation_history:
+            QtWidgets.QMessageBox.warning(self, "导出失败", "当前没有对话记录可导出")
+            return
+
+        user_count = sum(1 for m in self._conversation_history if m.get('role') == 'user')
+        assistant_count = sum(1 for m in self._conversation_history if m.get('role') == 'assistant')
+
+        if user_count == 0:
+            QtWidgets.QMessageBox.warning(self, "导出失败", "对话中没有用户消息")
+            return
+
+        msg_box = QtWidgets.QMessageBox(self)
+        msg_box.setWindowTitle("导出训练数据")
+        msg_box.setText(f"当前对话包含 {user_count} 条用户消息，{assistant_count} 条 AI 回复。\n\n选择导出方式：")
+        msg_box.setInformativeText(
+            "• 分割模式：每轮对话生成一个训练样本（推荐，样本更多）\n"
+            "• 完整模式：整个对话作为一个训练样本"
+        )
+
+        split_btn = msg_box.addButton("分割模式", QtWidgets.QMessageBox.ActionRole)
+        full_btn = msg_box.addButton("完整模式", QtWidgets.QMessageBox.ActionRole)
+        cancel_btn = msg_box.addButton("取消", QtWidgets.QMessageBox.RejectRole)
+
+        msg_box.exec_()
+
+        clicked = msg_box.clickedButton()
+        if clicked == cancel_btn:
+            return
+
+        split_by_user = (clicked == split_btn)
+
+        try:
+            from ..utils.training_data_exporter import ChatTrainingExporter
+
+            exporter = ChatTrainingExporter()
+            filepath = exporter.export_conversation(
+                self._conversation_history,
+                system_prompt=self._system_prompt,
+                split_by_user=split_by_user
+            )
+
+            response = self._add_ai_response()
+            response.add_status("训练数据已导出")
+
+            sample_count = 0
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    sample_count = sum(1 for _ in f)
+            except Exception:
+                pass
+
+            response.set_content(
+                f"成功导出训练数据！\n\n"
+                f"文件: {filepath}\n"
+                f"训练样本数: {sample_count}\n"
+                f"对话轮数: {user_count}\n"
+                f"导出模式: {'分割模式' if split_by_user else '完整模式'}\n\n"
+                f"提示: 文件为 JSONL 格式，可直接用于 OpenAI/DeepSeek 微调"
+            )
+            response.finalize()
+
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "导出成功",
+                f"已生成 {sample_count} 个训练样本\n\n是否打开所在文件夹？",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+            )
+
+            if reply == QtWidgets.QMessageBox.Yes:
+                import os
+                import subprocess
+                folder = os.path.dirname(filepath)
+                if os.name == 'nt':
+                    os.startfile(folder)
+                else:
+                    subprocess.run(['open' if 'darwin' in __import__('sys').platform else 'xdg-open', folder])
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "导出错误", f"导出训练数据时发生错误：{str(e)}")
 
     # ===== 检查更新 =====
     def _on_check_update(self):

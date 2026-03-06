@@ -37,6 +37,7 @@ _ETAG_CACHE_FILE = _PROJECT_ROOT / "cache" / "update_cache.json"
 _PRESERVE_PATHS = frozenset({
     "config",           # 用户 API key 等配置
     "cache",            # 对话缓存、文档索引
+    "trainData",        # 训练数据
     ".git",             # git 仓库
 })
 
