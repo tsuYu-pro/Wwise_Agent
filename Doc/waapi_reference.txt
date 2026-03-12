@@ -1,0 +1,735 @@
+## WAAPI Connection Setup
+
+WAAPI uses WAMP (Web Application Messaging Protocol) over WebSocket. Default endpoint: ws://127.0.0.1:8080/waapi
+
+Prerequisites:
+- Wwise Authoring Application must be running
+- WAAPI must be enabled: Project > Project Settings > WAMP > Enable WAAPI
+- Default port: 8080 (configurable in Project Settings)
+
+Python connection using waapi-client:
+```python
+from waapi import WaapiClient
+
+# Connect to Wwise
+client = WaapiClient()
+
+# Or specify custom URL
+client = WaapiClient(url="ws://127.0.0.1:8080/waapi")
+
+# Always disconnect when done
+client.disconnect()
+```
+
+## Creating Objects with ak.wwise.core.object.create
+
+Create Wwise objects in the project hierarchy.
+
+Basic sound creation:
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "Sound",
+        "name": "MyNewSound",
+        "onNameConflict": "rename"  # or "replace", "fail"
+    }
+)
+# Returns: {"id": "{GUID}", "name": "MyNewSound", "path": "..."}
+```
+
+Create with properties:
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "Sound",
+        "name": "Footstep_Concrete",
+        "@Volume": -6.0,
+        "@Pitch": 0,
+        "@Lowpass": 0,
+        "@IsLoopingEnabled": False
+    }
+)
+```
+
+Create nested hierarchy:
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "RandomSequenceContainer",
+        "name": "Footsteps",
+        "children": [
+            {"type": "Sound", "name": "Footstep_01"},
+            {"type": "Sound", "name": "Footstep_02"},
+            {"type": "Sound", "name": "Footstep_03"}
+        ]
+    }
+)
+```
+
+## Querying Objects with ak.wwise.core.object.get
+
+Retrieve objects from the Wwise project using WAQL or path.
+
+Get by path:
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]}
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```
+
+Get all children:
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]},
+        "transform": [{"select": ["children"]}]
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```
+
+Get by type (using WAQL):
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"search": [{"type": ["Event"]}]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+```
+
+Get with property values:
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound"]}
+    },
+    options={"return": ["id", "name", "@Volume", "@Pitch", "@Lowpass", "@IsLoopingEnabled"]}
+)
+```
+
+WAQL query examples:
+```python
+# Find all sounds with volume below -6dB
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": ["$ from type Sound where Volume < -6"]}
+    },
+    options={"return": ["id", "name", "@Volume"]}
+)
+
+# Find objects by name pattern
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": ['$ from type Sound where name = "Footstep*"']}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+```
+
+## Setting Object Properties with ak.wwise.core.object.set
+
+Modify properties of existing Wwise objects.
+
+Set single property:
+```python
+client.call(
+    "ak.wwise.core.object.set",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "@Volume": -3.0
+    }
+)
+```
+
+Set multiple properties:
+```python
+client.call(
+    "ak.wwise.core.object.set",
+    {
+        "object": "{object-guid}",
+        "@Volume": -6.0,
+        "@Pitch": 200,
+        "@Lowpass": 50,
+        "@IsLoopingEnabled": True
+    }
+)
+```
+
+Set by GUID:
+```python
+client.call(
+    "ak.wwise.core.object.set",
+    {
+        "object": "{12345678-1234-1234-1234-123456789abc}",
+        "@Volume": 0
+    }
+)
+```
+
+## Deleting Objects with ak.wwise.core.object.delete
+
+Remove objects from the Wwise project.
+
+```python
+client.call(
+    "ak.wwise.core.object.delete",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\OldSound"
+    }
+)
+```
+
+## Moving and Copying Objects
+
+Move objects:
+```python
+client.call(
+    "ak.wwise.core.object.move",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Weapons",
+        "onNameConflict": "rename"
+    }
+)
+```
+
+Copy objects:
+```python
+client.call(
+    "ak.wwise.core.object.copy",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Backup",
+        "onNameConflict": "rename"
+    }
+)
+```
+
+## Importing Audio Files with ak.wwise.core.audio.import
+
+Import audio files into Wwise objects.
+
+Single file import:
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "useExisting",  # or "createNew", "replaceExisting"
+        "imports": [
+            {
+                "audioFile": "C:/Audio/footstep_01.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<Sound>Footstep_01"
+            }
+        ]
+    }
+)
+```
+
+Batch import:
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "createNew",
+        "imports": [
+            {
+                "audioFile": "C:/Audio/footstep_01.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_01"
+            },
+            {
+                "audioFile": "C:/Audio/footstep_02.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_02"
+            },
+            {
+                "audioFile": "C:/Audio/footstep_03.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_03"
+            }
+        ]
+    }
+)
+```
+
+Import with language:
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "useExisting",
+        "imports": [
+            {
+                "audioFile": "C:/VO/en/greeting.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Dialogue\\<Sound>Greeting",
+                "importLanguage": "English(US)"
+            }
+        ]
+    }
+)
+```
+
+## Creating Events
+
+Events link game actions to Wwise playback.
+
+Create a Play event:
+```python
+# Step 1: Create the Event
+event_result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Events\\Default Work Unit",
+        "type": "Event",
+        "name": "Play_Footstep"
+    }
+)
+
+# Step 2: Add a Play action targeting a sound
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": event_result["path"],
+        "type": "Action",
+        "name": "",
+        "@ActionType": 1,  # 1 = Play
+        "@Target": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Footsteps"
+    }
+)
+```
+
+## Managing Game Syncs (Switches, States, RTPC)
+
+Create Switch Group:
+```python
+# Create Switch Group
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Switches\\Default Work Unit",
+        "type": "SwitchGroup",
+        "name": "Surface_Type",
+        "children": [
+            {"type": "Switch", "name": "Concrete"},
+            {"type": "Switch", "name": "Wood"},
+            {"type": "Switch", "name": "Metal"},
+            {"type": "Switch", "name": "Grass"}
+        ]
+    }
+)
+```
+
+Create State Group:
+```python
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\States\\Default Work Unit",
+        "type": "StateGroup",
+        "name": "GameState",
+        "children": [
+            {"type": "State", "name": "Gameplay"},
+            {"type": "State", "name": "Menu"},
+            {"type": "State", "name": "Cutscene"},
+            {"type": "State", "name": "Paused"}
+        ]
+    }
+)
+```
+
+Create Game Parameter (RTPC):
+```python
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Game Parameters\\Default Work Unit",
+        "type": "GameParameter",
+        "name": "Player_Health",
+        "@Min": 0,
+        "@Max": 100,
+        "@SimulationValue": 100
+    }
+)
+```
+
+## Transport Control with ak.wwise.core.transport
+
+Control audio playback in the Wwise Authoring tool.
+
+Create transport and play:
+```python
+# Create a transport for an object
+transport = client.call(
+    "ak.wwise.core.transport.create",
+    {
+        "object": "\\Events\\Default Work Unit\\Play_Footstep"
+    }
+)
+
+transport_id = transport["transport"]
+
+# Play
+client.call(
+    "ak.wwise.core.transport.executeAction",
+    {
+        "transport": transport_id,
+        "action": "play"
+    }
+)
+
+# Stop
+client.call(
+    "ak.wwise.core.transport.executeAction",
+    {
+        "transport": transport_id,
+        "action": "stop"
+    }
+)
+
+# Destroy transport when done
+client.call(
+    "ak.wwise.core.transport.destroy",
+    {
+        "transport": transport_id
+    }
+)
+```
+
+## SoundBank Generation with ak.wwise.core.soundbank
+
+Generate SoundBanks:
+```python
+# Generate all SoundBanks
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": []  # Empty = generate all
+    }
+)
+
+# Generate specific SoundBank
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": [
+            {"name": "MyGameBank"}
+        ]
+    }
+)
+
+# Generate with platform
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": [{"name": "MyGameBank"}],
+        "platforms": ["Windows"],
+        "languages": ["English(US)"]
+    }
+)
+```
+
+## Undo/Redo with ak.wwise.core.undo
+
+Manage undo operations:
+```python
+# Begin undo group
+client.call("ak.wwise.core.undo.beginGroup")
+
+# ... perform multiple operations ...
+
+# End undo group with a label
+client.call(
+    "ak.wwise.core.undo.endGroup",
+    {
+        "displayName": "Batch Create Sounds"
+    }
+)
+
+# Undo last operation
+client.call("ak.wwise.core.undo.undo")
+
+# Redo
+client.call("ak.wwise.core.undo.redo")
+
+# Cancel undo group (discard changes)
+client.call("ak.wwise.core.undo.cancelGroup")
+```
+
+## Subscribing to Topics
+
+WAAPI supports pub/sub for real-time notifications:
+```python
+# Subscribe to object name changes
+def on_name_changed(event):
+    print(f"Object renamed: {event}")
+
+handler = client.subscribe(
+    "ak.wwise.core.object.nameChanged",
+    on_name_changed,
+    options={"return": ["id", "name", "path"]}
+)
+
+# Subscribe to selection changes
+def on_selection_changed(event):
+    print(f"Selection: {event}")
+
+handler2 = client.subscribe(
+    "ak.wwise.ui.selectionChanged",
+    on_selection_changed,
+    options={"return": ["id", "name", "type"]}
+)
+
+# Unsubscribe
+handler.unsubscribe()
+handler2.unsubscribe()
+```
+
+## Project Operations
+
+Open and manage Wwise projects:
+```python
+# Get project info
+info = client.call("ak.wwise.core.getInfo")
+print(f"Wwise version: {info['version']['displayName']}")
+print(f"Project: {info.get('projectName', 'N/A')}")
+
+# Save project
+client.call("ak.wwise.ui.project.save")
+
+# Close project
+client.call("ak.wwise.ui.project.close")
+
+# Open project
+client.call(
+    "ak.wwise.ui.project.open",
+    {
+        "path": "C:/WwiseProjects/MyGame/MyGame.wproj"
+    }
+)
+```
+
+## UI Commands
+
+Execute Wwise UI commands:
+```python
+# Get list of available commands
+commands = client.call("ak.wwise.ui.commands.getCommands")
+
+# Execute a command
+client.call(
+    "ak.wwise.ui.commands.execute",
+    {
+        "command": "FindInProjectExplorerSyncGroup1"
+    }
+)
+```
+
+## Error Handling Best Practices
+
+Robust WAAPI error handling:
+```python
+from waapi import WaapiClient, CannotConnectToWaapiException
+
+try:
+    client = WaapiClient()
+except CannotConnectToWaapiException:
+    print("Error: Cannot connect to Wwise. Is Wwise running with WAAPI enabled?")
+    exit(1)
+
+try:
+    result = client.call(
+        "ak.wwise.core.object.create",
+        {
+            "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+            "type": "Sound",
+            "name": "TestSound"
+        }
+    )
+    if result:
+        print(f"Created: {result['path']}")
+    else:
+        print("Operation returned no result")
+except Exception as e:
+    print(f"WAAPI error: {e}")
+finally:
+    client.disconnect()
+```
+
+## Batch Operations Pattern
+
+Efficient batch operations using undo groups:
+```python
+client = WaapiClient()
+
+# Wrap batch operations in undo group
+client.call("ak.wwise.core.undo.beginGroup")
+
+try:
+    # Create 50 sound objects
+    for i in range(50):
+        client.call(
+            "ak.wwise.core.object.create",
+            {
+                "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\BatchSounds",
+                "type": "Sound",
+                "name": f"Sound_{i:03d}",
+                "@Volume": -3.0,
+                "onNameConflict": "rename"
+            }
+        )
+
+    client.call(
+        "ak.wwise.core.undo.endGroup",
+        {"displayName": "Batch Create 50 Sounds"}
+    )
+    print("Batch creation complete. Can be undone as single action.")
+
+except Exception as e:
+    client.call("ak.wwise.core.undo.cancelGroup")
+    print(f"Batch failed, all changes rolled back: {e}")
+
+client.disconnect()
+```
+
+## Common WAAPI Return Options
+
+Specify what data to return from queries:
+```python
+# Common return options
+options = {
+    "return": [
+        "id",           # GUID
+        "name",         # Object name
+        "type",         # Object type (Sound, Event, etc.)
+        "path",         # Full path in hierarchy
+        "shortId",      # Short ID for runtime
+        "classId",      # Class identifier
+        "category",     # Object category
+        "filePath",     # Source file path
+        "workunit",     # Parent Work Unit
+        "owner",        # Owner object
+        "parent",       # Parent object
+        "isPlayable",   # Can be played
+        "childrenCount", # Number of children
+        "notes",        # Designer notes
+        "@Volume",      # Volume property
+        "@Pitch",       # Pitch property
+        "@Lowpass",     # Low-pass filter
+        "@Highpass",    # High-pass filter
+        "@IsLoopingEnabled",  # Loop enabled
+    ]
+}
+
+result = client.call(
+    "ak.wwise.core.object.get",
+    {"from": {"search": [{"type": ["Sound"]}]}},
+    options=options
+)
+```
+
+## Profiler Access via WAAPI
+
+Access profiler data programmatically:
+```python
+# Start capture
+client.call("ak.wwise.core.profiler.startCapture")
+
+# ... game runs ...
+
+# Stop capture
+client.call("ak.wwise.core.profiler.stopCapture")
+
+# Get voice activity
+voices = client.call(
+    "ak.wwise.core.profiler.getVoices",
+    {"time": {"type": "user", "value": 0}}
+)
+
+# Get performance metrics
+perf = client.call("ak.wwise.core.profiler.getCursorTimestamp")
+```
+
+## Remote Connection
+
+Connect to Wwise running on a remote console/device:
+```python
+# Get available connections
+connections = client.call("ak.wwise.core.remote.getAvailableConsoles")
+
+# Connect to a console
+client.call(
+    "ak.wwise.core.remote.connect",
+    {
+        "host": "192.168.1.100",
+        "commandPort": 24024
+    }
+)
+
+# Disconnect from remote
+client.call("ak.wwise.core.remote.disconnect")
+```
+
+## WAQL Advanced Queries
+
+Advanced WAQL query patterns for complex searches:
+
+```python
+# Find all events that reference sounds with volume below -10dB
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type Event'
+        ]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+
+# Find all Switch Containers
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type SwitchContainer'
+        ]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+
+# Find objects modified recently (by name pattern)
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type Sound where name : "Weapon"'
+        ]}
+    },
+    options={"return": ["id", "name", "path", "@Volume"]}
+)
+
+# Get descendants of a specific path
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]},
+        "transform": [
+            {"select": ["descendants"]},
+            {"where": ["type:isIn", ["Sound", "RandomSequenceContainer"]]}
+        ]
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```

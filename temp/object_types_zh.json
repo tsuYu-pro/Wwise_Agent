@@ -1,0 +1,159 @@
+{
+  "types": [
+    {
+      "name": "Sound",
+      "description": "基础音频对象，代表单个音频文件或源插件生成的声音。是 Actor-Mixer 层级中最小的可播放单元。",
+      "properties": ["Volume", "Pitch", "Lowpass", "Highpass", "IsLoopingEnabled", "LoopCount", "InitialDelay", "MakeUpGain", "Priority", "IsPositioningEnabled"]
+    },
+    {
+      "name": "RandomSequenceContainer",
+      "description": "随机/顺序容器，按随机或固定顺序播放子对象。支持防重复、循环、过渡等高级播放模式。",
+      "properties": ["RandomOrSequence", "RandomAvoidRepeatingCount", "IsLoopingEnabled", "LoopCount", "TransitionDuration", "Volume", "Pitch", "NormalOrShuffle"]
+    },
+    {
+      "name": "SwitchContainer",
+      "description": "切换容器，根据 Switch 或 State 的值动态选择播放不同的子对象。用于根据游戏状态切换音频变体。",
+      "properties": ["Volume", "Pitch", "SwitchGroupOrStateGroup", "DefaultSwitchOrState", "SwitchBehavior"]
+    },
+    {
+      "name": "BlendContainer",
+      "description": "混合容器，基于 Game Parameter（RTPC）在子对象之间进行交叉淡入淡出。适合连续变化的音频效果（如引擎转速）。",
+      "properties": ["Volume", "Pitch", "Lowpass", "Highpass"]
+    },
+    {
+      "name": "ActorMixer",
+      "description": "分组节点，将共享属性应用到所有子对象。用于组织和管理一组相关的音频对象。",
+      "properties": ["Volume", "Pitch", "Lowpass", "Highpass", "OutputBusId", "Priority"]
+    },
+    {
+      "name": "Event",
+      "description": "事件，是游戏与 Wwise 通信的核心桥梁。包含一个或多个 Action（播放、停止、设置参数等）。",
+      "properties": ["MaxReachedBehavior", "Priority"]
+    },
+    {
+      "name": "Action",
+      "description": "动作，Event 内部的执行单元。定义具体操作（Play/Stop/Pause 等）及其目标对象。",
+      "properties": ["ActionType", "Target", "Delay", "FadeTime", "Probability", "Scope"]
+    },
+    {
+      "name": "Bus",
+      "description": "音频总线，用于信号路由和混音。所有声音最终通过总线层级输出到主输出。",
+      "properties": ["Volume", "Pitch", "Lowpass", "Highpass", "BusVolume", "PlaybackLimit", "OverLimitBehavior", "HDREnabled"]
+    },
+    {
+      "name": "AuxBus",
+      "description": "辅助总线，用于发送效果（混响、延迟等）。可以是 Game-Defined（游戏控制）或 User-Defined（设计师手动设置）。",
+      "properties": ["Volume", "Lowpass", "Highpass"]
+    },
+    {
+      "name": "SwitchGroup",
+      "description": "Switch 组，定义一组离散的切换值（如材质类型：木头/金属/草地）。绑定到游戏对象级别。",
+      "properties": ["DefaultSwitch"]
+    },
+    {
+      "name": "Switch",
+      "description": "Switch 值，SwitchGroup 的子项。代表一个具体的切换选项。",
+      "properties": []
+    },
+    {
+      "name": "StateGroup",
+      "description": "State 组，定义一组全局状态（如游戏状态：菜单/游戏中/过场动画）。同一时间只有一个活跃状态。",
+      "properties": ["DefaultTransitionTime"]
+    },
+    {
+      "name": "State",
+      "description": "State 值，StateGroup 的子项。可以修改任意对象属性（音量、音高、滤波器等），用于全局音频状态切换。",
+      "properties": []
+    },
+    {
+      "name": "GameParameter",
+      "description": "游戏参数（RTPC），连续浮点值，用于实时控制音频属性。常用于：距离衰减、速度-音高映射、生命值-混音变化等。",
+      "properties": ["Min", "Max", "DefaultValue", "SimulationValue", "BindToBuiltInParam", "Interpolation"]
+    },
+    {
+      "name": "Trigger",
+      "description": "触发器，一次性通知机制，用于触发交互音乐中的 Stinger（重音/过渡音效）。",
+      "properties": []
+    },
+    {
+      "name": "SoundBank",
+      "description": "音频包，将音频数据和元数据打包供游戏运行时加载。Init Bank 是必须首先加载的初始化包。",
+      "properties": []
+    },
+    {
+      "name": "MusicSegment",
+      "description": "音乐片段，交互音乐系统的基本构建块。包含一个或多个 Music Track，有精确的节拍和节奏定义。",
+      "properties": ["Tempo", "TimeSignatureUpper", "TimeSignatureLower", "Volume", "Pitch", "Duration"]
+    },
+    {
+      "name": "MusicTrack",
+      "description": "音乐轨道，Music Segment 内的音频层。支持普通、随机步进、顺序步进、切换等模式。",
+      "properties": ["Volume", "Lowpass", "Highpass", "TrackType"]
+    },
+    {
+      "name": "MusicPlaylistContainer",
+      "description": "音乐播放列表容器，按顺序或随机顺序排列 Music Segment。支持循环和连续播放。",
+      "properties": ["Volume", "Pitch"]
+    },
+    {
+      "name": "MusicSwitchContainer",
+      "description": "音乐切换容器，根据 Game Sync 在不同音乐段落间切换。定义过渡规则（节拍同步、淡入淡出等）。",
+      "properties": ["Volume", "Pitch"]
+    },
+    {
+      "name": "Attenuation",
+      "description": "衰减 ShareSet，定义声音随距离变化的属性曲线（音量、滤波器、扩展角度等）。可被多个对象复用。",
+      "properties": ["MaxDistance", "UseConeAttenuation", "ConeInnerAngle", "ConeOuterAngle"]
+    },
+    {
+      "name": "Effect",
+      "description": "效果器 ShareSet，可复用的音频效果预设（压缩器、均衡器、混响等）。插入到对象或总线的效果链中。",
+      "properties": ["BypassFX"]
+    },
+    {
+      "name": "Conversion",
+      "description": "转换设置 ShareSet，定义每个平台的音频编码格式和质量设置。确保跨平台的音频质量一致性。",
+      "properties": ["Format", "Quality"]
+    },
+    {
+      "name": "AudioDevice",
+      "description": "音频设备，定义音频输出目标设备（系统音频、游戏控制器扬声器等）。",
+      "properties": []
+    },
+    {
+      "name": "WorkUnit",
+      "description": "工作单元，Wwise 项目的文件级组织单位（.wwu 文件）。便于团队协作和版本控制。",
+      "properties": []
+    },
+    {
+      "name": "Folder",
+      "description": "文件夹，用于在层级中进行逻辑分组。不影响音频属性，纯组织用途。",
+      "properties": []
+    },
+    {
+      "name": "DialogueEvent",
+      "description": "对话事件，基于多个条件（说话者、情绪、上下文等）动态选择语音。使用决策树进行匹配。",
+      "properties": ["Probability", "Weight"]
+    },
+    {
+      "name": "AcousticTexture",
+      "description": "声学纹理，定义表面材质的声学特性（反射系数、吸收系数等），用于空间音频的反射和衍射计算。",
+      "properties": ["AbsorptionLow", "AbsorptionMidLow", "AbsorptionMidHigh", "AbsorptionHigh"]
+    },
+    {
+      "name": "ModulatorLfo",
+      "description": "LFO 调制器，周期性调制音频属性值（如音量颤音、音高振荡）。",
+      "properties": ["Frequency", "Depth", "Waveform", "Attack", "PWM", "Smoothing"]
+    },
+    {
+      "name": "ModulatorEnvelope",
+      "description": "包络调制器，ADSR 包络控制音频属性的时间变化（Attack/Decay/Sustain/Release）。",
+      "properties": ["AttackTime", "DecayTime", "SustainLevel", "SustainTime", "ReleaseTime", "AttackCurve"]
+    },
+    {
+      "name": "ModulatorTime",
+      "description": "时间调制器，按经过时间控制属性值变化。",
+      "properties": ["InitialDelay", "Duration", "Playback"]
+    }
+  ]
+}

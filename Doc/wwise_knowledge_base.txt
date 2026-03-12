@@ -1,0 +1,639 @@
+## Wwise Overview
+
+Wwise (Wave Works Interactive Sound Engine) is a professional interactive audio middleware developed by Audiokinetic. It provides a complete audio production pipeline for games and interactive media, separating sound design from game programming. Wwise supports all major platforms including PC, consoles (PlayStation, Xbox, Nintendo Switch), mobile (iOS, Android), and VR/AR devices.
+
+Key features:
+- Real-time audio authoring and profiling
+- Interactive music system
+- Spatial audio with 3D positioning
+- Dynamic mixing and effects processing
+- SoundBank management and streaming
+- Cross-platform deployment
+- WAAPI (Wwise Authoring API) for tool integration
+
+## Project Structure
+
+A Wwise project consists of the following main components:
+
+1. **Actor-Mixer Hierarchy**: The primary structure for organizing sound assets
+   - Sounds (SFX), Voice sounds
+   - Random/Sequence Containers
+   - Switch Containers
+   - Blend Containers
+   - Actor-Mixer (grouping node)
+
+2. **Interactive Music Hierarchy**: For adaptive music systems
+   - Music Segments
+   - Music Playlists (sequential/random)
+   - Music Switch Containers
+
+3. **Master-Mixer Hierarchy**: Audio bus routing and mixing
+   - Master Audio Bus
+   - Audio Buses (sub-buses)
+   - Auxiliary Buses (for environmental effects)
+
+4. **Events**: Bridge between game code and Wwise
+   - Play, Stop, Pause, Resume actions
+   - Set Switch, Set State, Set Game Parameter
+   - Seek actions
+
+5. **Game Syncs**: Real-time game-to-audio communication
+   - Switches: Discrete state changes (e.g., surface type)
+   - States: Global state changes (e.g., in-game/menu)
+   - Game Parameters (RTPC): Continuous values (e.g., distance, speed)
+   - Triggers: One-shot notifications (e.g., stinger triggers)
+
+6. **SoundBanks**: Packaged audio data for runtime loading
+   - Init Bank (always loaded first)
+   - User-defined banks
+   - Auto-defined banks (per event/bus)
+
+7. **Work Units**: File-level organization within each hierarchy
+   - Physical .wwu files on disk
+   - Can be shared across team members via version control
+
+## Actor-Mixer Hierarchy
+
+The Actor-Mixer Hierarchy is the core organizational structure for sound assets in Wwise.
+
+**Sound Objects:**
+- Sound SFX: Single audio file or plugin-generated sound
+- Sound Voice: Localized voice/dialogue content
+
+**Containers:**
+- Random Container: Plays child sounds randomly with options for no-repeat, shuffle
+- Sequence Container: Plays child sounds in order (loop, restart options)
+- Switch Container: Selects child based on Switch or State value
+- Blend Container: Crossfades/layers between children based on Game Parameter
+
+**Actor-Mixer:**
+- Grouping node that applies shared properties to children
+- Properties cascade down: volume, pitch, filters, effects, positioning
+- Override mechanism: children can override parent properties
+
+**Property Inheritance:**
+- Volume, Pitch, LPF, HPF cascade additively
+- Positioning, Effects, Attenuation can be overridden per object
+- Playback limits and priority are inherited but overridable
+
+## Interactive Music System
+
+Wwise's Interactive Music system enables dynamic, adaptive music that responds to game events in real-time.
+
+**Music Segment:**
+- The fundamental music building block
+- Contains one or more Music Tracks (audio layers)
+- Has Entry/Exit Cues for transition timing
+- Duration defined by time signature and tempo
+
+**Music Track:**
+- Audio layer within a Music Segment
+- Types: Normal, Random Step, Sequence Step, Switch
+- Sub-tracks for variation and layering
+
+**Music Playlist Container:**
+- Sequences Music Segments in order
+- Supports: Sequential, Random, Continuous playback
+- Loop count per segment or entire playlist
+
+**Music Switch Container:**
+- Switches between music segments/playlists based on Game Syncs
+- Transition rules define how switches occur
+- Supports: Immediate, Next Beat, Next Bar, Next Cue, Exit Cue transitions
+
+**Transition Rules:**
+- Source: fade-out type, duration, offset
+- Destination: fade-in type, duration, offset
+- Transition Segment: optional bridging segment
+- Pre-entry/Post-exit regions
+- Stingers: musical accents triggered by game events
+
+**Tempo and Time Signature:**
+- BPM (beats per minute) defined per segment
+- Time signatures (4/4, 3/4, 6/8, etc.)
+- Grid-based editing aligned to musical time
+
+## Audio Bus Architecture
+
+The Master-Mixer Hierarchy defines the audio routing and mixing architecture.
+
+**Master Audio Bus:**
+- Root of all audio routing
+- All sounds ultimately output through this bus
+- Controls master volume and final output
+
+**Audio Bus:**
+- Sub-bus for grouping and processing
+- Common organization: SFX Bus, Music Bus, Voice Bus, Ambient Bus
+- Each bus can have its own volume, effects, metering
+- Buses can be nested to any depth
+
+**Auxiliary Bus:**
+- Used for send-based effects (reverb, delay)
+- Game-Defined Aux Sends: controlled by game via RTPC/positioning
+- User-Defined Aux Sends: manually configured in Wwise
+- Listener-relative aux sends for environmental audio
+
+**Bus Properties:**
+- Volume, Pitch, LPF, HPF
+- Playback limits (max voices per bus)
+- HDR (High Dynamic Range) settings
+- Ducking (volume reduction of other buses)
+- Effects chain (ShareSets or custom)
+
+**Ducking:**
+- Automatic volume reduction when specific buses are active
+- Configurable: target bus, volume reduction, fade times
+- Recovery time after ducking source stops
+- Common use: duck music/ambience when dialogue plays
+
+## Events and Actions
+
+Events are the primary mechanism for game-to-Wwise communication.
+
+**Event Types and Actions:**
+- Play: Start playback of a sound/music object
+- Stop: Stop playback (with optional fade-out)
+- Pause / Resume: Temporarily halt/continue playback
+- Break: Stop looping (play to end of current iteration)
+- Seek: Jump to specific position in audio
+- Set Switch: Change Switch value for a game object
+- Set State: Change global State value
+- Set Game Parameter: Modify RTPC value
+- Reset Game Parameter: Return RTPC to default
+- Enable/Disable Bypass: Toggle effect bypass
+- Post Event: Trigger another event
+
+**Event Properties:**
+- Scope: Game Object or Global
+- Probability: Random chance of action executing
+- Delay: Time offset before action executes
+- Fade-in/Fade-out: Gradual volume changes
+
+**Naming Conventions (Best Practice):**
+- Play_[ObjectName]: e.g., Play_Footstep, Play_Music_Combat
+- Stop_[ObjectName]: e.g., Stop_Music_Combat
+- Set_[SyncName]: e.g., Set_Surface_Wood
+- Pause_All, Resume_All for global control
+
+## Game Syncs - Switches, States, RTPC, Triggers
+
+Game Syncs provide real-time communication between the game engine and Wwise.
+
+**Switches:**
+- Discrete values bound to individual Game Objects
+- Each Game Object can have different Switch values simultaneously
+- Example: Material surface type (Wood, Metal, Grass, Concrete)
+- Used with Switch Containers to select appropriate sounds
+- Default Switch value for unset game objects
+
+**States:**
+- Global values affecting all Game Objects
+- Only one State active per State Group at a time
+- Example: GameState (Menu, Gameplay, Cutscene, Paused)
+- Can modify any property: Volume, Pitch, LPF, Bus Volume, etc.
+- State transitions can be instant or interpolated
+
+**Game Parameters (RTPC - Real-Time Parameter Control):**
+- Continuous numeric values (float)
+- Bound to Game Objects or Global scope
+- Mapped to audio properties via curves:
+  - Volume vs. Distance
+  - Pitch vs. Speed
+  - LPF vs. Occlusion
+- Built-in parameters: Distance, Azimuth, Elevation, Emitter Cone
+- Custom parameters defined by the designer
+- Interpolation: slew rate for smooth transitions
+
+**Triggers:**
+- One-shot notifications from game to Wwise
+- Used for Stingers in Interactive Music
+- Fire-and-forget: no persistent state
+- Example: Player_Hit trigger → musical accent
+
+## Attenuation and Distance
+
+Attenuation defines how sound changes with distance from the listener.
+
+**Attenuation Curves:**
+- Volume vs. Distance: Primary distance rolloff
+- LPF vs. Distance: Low-pass filter for distance damping
+- HPF vs. Distance: High-pass filter
+- Spread vs. Distance: Stereo/surround spread angle
+- Focus vs. Distance: How focused the sound image is
+
+**Curve Types:**
+- Linear, Logarithmic (Base 3), SCurve, InversedSCurve
+- Custom curves with arbitrary control points
+- Max Distance: beyond this, sound is silent (or at minimum)
+
+**Attenuation ShareSets:**
+- Reusable attenuation presets
+- Applied to sounds, containers, or Actor-Mixers
+- Can be overridden at any level of the hierarchy
+
+**Cone Attenuation:**
+- Directional sound emission
+- Inner Angle: full volume region
+- Outer Angle: attenuated region
+- Properties: Volume, LPF at outer angle
+
+## Spatial Audio and Positioning
+
+Wwise provides comprehensive spatial audio capabilities.
+
+**Positioning Modes:**
+- 2D: No spatialization (stereo/surround panning)
+- 3D: Full 3D spatialization based on emitter/listener positions
+- Listener-Relative Routing: For UI sounds, music
+
+**3D Spatialization:**
+- Emitter position relative to listener
+- Supports: Stereo, 5.1, 7.1, 7.1.4, Ambisonics
+- Speaker panning or 3D spatialization engine
+- Height channels for Atmos/overhead sounds
+
+**3D User-Defined Positioning:**
+- Automation paths for moving sound sources
+- Multiple positions per emitter
+- Random/sequence path selection
+
+**Rooms and Portals (Spatial Audio):**
+- Room: Acoustic space with reverb properties
+- Portal: Connection between rooms
+- Diffraction: Sound bending around obstacles
+- Transmission: Sound passing through walls
+- Reverb estimation based on room geometry
+
+**Reflect Plugin:**
+- Early reflections simulation
+- Ray-traced reflections from geometry
+- First-order and higher-order reflections
+- Real-time filter and delay based on materials
+
+## Effects and Processing
+
+Wwise includes a comprehensive suite of audio effects.
+
+**Built-in Effects:**
+- Wwise Compressor: Dynamic range compression
+- Wwise Expander: Dynamic range expansion
+- Wwise Parametric EQ: Multi-band equalization
+- Wwise Delay: Simple delay effect
+- Wwise Matrix Reverb: Algorithmic reverb
+- Wwise RoomVerb: Room simulation reverb
+- Wwise Meter: Level metering and analysis
+- Wwise Gain: Simple gain adjustment
+- Wwise Tremolo: Amplitude modulation
+- Wwise Flanger: Flanging effect
+- Wwise Guitar Distortion: Distortion effect
+- Wwise Time Stretch: Time/pitch manipulation
+- Wwise Harmonizer: Pitch harmonization
+- Wwise Stereo Delay: Stereo delay with feedback
+- Wwise Recorder: Audio capture to file
+
+**Effect Placement:**
+- On Sound/Container objects (insert effects)
+- On Audio Buses (bus effects)
+- On Auxiliary Buses (send effects)
+- Order matters: effects processed in chain order
+
+**ShareSets:**
+- Reusable effect presets
+- Shared across multiple objects/buses
+- Modify once, updates everywhere
+- Can be customized per instance
+
+## SoundBanks and Media Management
+
+SoundBanks package audio data and metadata for runtime use.
+
+**Init Bank:**
+- Always generated, always loaded first
+- Contains: bus hierarchy, State/Switch groups, RTPC definitions
+- Required for any audio playback
+
+**User-Defined SoundBanks:**
+- Designer-organized banks
+- Group by: game level, feature, frequency of use
+- Include: Events, structures, media files
+- Balance: bank count vs. bank size vs. memory
+
+**Auto-Defined SoundBanks:**
+- Automatically generated per Event
+- Simplifies bank management
+- Each event gets its own bank file
+
+**Media Prefetch:**
+- Preload media into memory before playback
+- Reduces first-play latency
+- Configurable per sound object
+
+**Streaming:**
+- Stream audio from disk during playback
+- Prefetch length: initial data loaded to memory
+- Zero-latency option: cache beginning of stream
+- Ideal for: long ambient sounds, music, dialogue
+
+**Conversion Settings:**
+- Per-platform audio format conversion
+- Formats: PCM, Vorbis, Opus, ADPCM, WEM
+- Quality settings per format
+- Conversion ShareSets for consistency
+
+## Profiler and Performance
+
+The Wwise Profiler provides real-time monitoring and debugging tools.
+
+**Capture Session:**
+- Record all audio activity during gameplay
+- Capture log: events, voice playback, bus activity
+- Timeline view of all audio events
+
+**Performance Metrics:**
+- Voice count: active/virtual/total
+- CPU usage: per-plugin, per-bus
+- Memory: media loaded, streaming buffers
+- Bandwidth: disk read rate
+
+**Voice Inspector:**
+- Real-time view of all playing voices
+- Properties: volume, priority, virtual state
+- Voice graph: signal flow visualization
+
+**Game Object Monitor:**
+- Track positions and properties of game objects
+- Distance calculations
+- Switch/State values per object
+
+**Advanced Profiler:**
+- API calls log: all WAAPI calls
+- Memory pools breakdown
+- Streaming activity
+
+## WAAPI Overview
+
+WAAPI (Wwise Authoring API) enables external tools and scripts to interact with the Wwise authoring application.
+
+**Communication Protocol:**
+- Uses WAMP (Web Application Messaging Protocol)
+- Default connection: ws://127.0.0.1:8080/waapi
+- JSON-RPC based request/response
+- Supports: procedure calls and topic subscriptions
+
+**Main API Categories:**
+- ak.wwise.core: Core Wwise operations
+  - core.object: Create, get, set, delete, move, copy objects
+  - core.audio: Import audio files
+  - core.transport: Playback control
+  - core.soundbank: Generate SoundBanks
+  - core.remote: Remote connection management
+  - core.undo: Undo/redo operations
+  - core.profiler: Profiler data access
+  - core.log: Log management
+
+- ak.wwise.ui: UI-related operations
+  - ui.project: Open/close projects
+  - ui.commands: Execute UI commands
+
+- ak.soundengine: Sound engine operations
+  - Post events, set switches/states, set RTPC values
+
+**Object References:**
+- By ID (GUID): Unique identifier
+- By path: e.g., "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound"
+- By name: Object name within scope
+- By search: Using WAQL queries
+
+**WAQL (Wwise Authoring Query Language):**
+- SQL-like queries for Wwise objects
+- Select objects by type, name, property values
+- Traverse hierarchy relationships
+- Filter with conditions and regular expressions
+- Example: $ from type Sound where Volume < -6
+
+## Wwise Object Properties
+
+Common properties available on Wwise objects:
+
+**Audio Properties:**
+- Volume: Output gain in dB (default: 0)
+- Pitch: Pitch shift in cents (default: 0)
+- Lowpass: Low-pass filter cutoff (0-100)
+- Highpass: High-pass filter cutoff (0-100)
+- MakeUpGain: Additional gain compensation
+
+**Playback Properties:**
+- IsLoopingEnabled: Enable/disable looping
+- LoopCount: Number of loops (0 = infinite)
+- IsLoopingInfinite: Infinite loop flag
+- InitialDelay: Delay before playback starts (seconds)
+
+**Randomizer Properties:**
+- RandomAvoidRepeatingCount: Avoid repeating last N items
+- IsNonCachable: Disable caching for random containers
+- RandomOrSequence: Random vs. Sequential playback mode
+
+**Priority and Limits:**
+- Priority: Voice priority (0-100, higher = more important)
+- PlaybackLimit: Maximum simultaneous voices
+- OverLimitBehavior: Kill oldest, kill newest, or kill by priority
+- VirtualVoiceBehavior: Continue, play from elapsed, play from beginning
+
+**Positioning:**
+- IsPositioningEnabled: Enable 3D positioning
+- SpeakerPanning: 2D panning mode
+- Spatialization3D: 3D rendering mode
+- AttenuationID: Reference to Attenuation ShareSet
+
+**Output Bus:**
+- OutputBusId: Target output bus
+- OutputBusVolume: Volume to output bus
+- GameAuxSendVolume: Volume to game-defined aux
+- UserAuxSendVolume0-3: Volume to user-defined aux buses
+
+## Wwise Integration Best Practices
+
+Best practices for integrating Wwise with game engines.
+
+**Event Design:**
+- One event per distinct game action
+- Use descriptive naming: Play_Weapon_Fire_Shotgun
+- Group related events in Work Units by feature
+- Minimize event count: use Switches instead of separate events for variations
+
+**Memory Management:**
+- Load/unload SoundBanks based on game context
+- Use streaming for long audio (>5 seconds)
+- Monitor memory usage with Profiler
+- Set appropriate prefetch lengths
+
+**Performance:**
+- Set voice limits per bus and globally
+- Use virtual voices for distant/quiet sounds
+- Prioritize important sounds (dialogue > SFX > ambience)
+- Minimize active effects chains
+
+**Game Object Management:**
+- Register game objects before posting events
+- Unregister when no longer needed
+- Set positions regularly for 3D sounds
+- Use game object scoping for Switches and RTPC
+
+**Organization:**
+- Use Work Units for team collaboration
+- Establish naming conventions early
+- Create ShareSets for reusable settings
+- Document Switch/State groups and their usage
+
+## Wwise Plug-in System
+
+Wwise supports custom audio plug-ins for extended functionality.
+
+**Plug-in Types:**
+- Source Plug-ins: Generate audio (synthesizers, tone generators)
+- Effect Plug-ins: Process audio (custom DSP)
+- Codec Plug-ins: Custom audio format encoding/decoding
+- Sink Plug-ins: Custom audio output
+
+**Built-in Source Plug-ins:**
+- Wwise Silence: Generates silence with defined duration
+- Wwise Tone Generator: Sine, triangle, square, sawtooth waves
+- Wwise Synth One: Subtractive synthesizer
+
+**Third-party Plug-ins:**
+- Auro Headphones: Binaural rendering
+- Reflect: Early reflections
+- Impacter: Physics-based impact sounds
+- Convolution Reverb: IR-based reverb
+- McDSP plug-ins: Professional audio processing
+
+## Wwise and Unreal Engine Integration
+
+Wwise integrates with Unreal Engine via the Wwise UE Integration plug-in.
+
+**Setup:**
+- Install Wwise UE Integration from Audiokinetic Launcher
+- Link Wwise project to UE project
+- Generate SoundBanks for UE to reference
+
+**UE Components:**
+- AkComponent: Attach to actors for positioned audio
+- AkAmbientSound: Environmental audio emitter
+- AkAudioEvent: Blueprint-accessible event asset
+- AkGameplayStatics: Blueprint function library
+
+**Blueprint Integration:**
+- Post Event: Trigger Wwise events from Blueprints
+- Set Switch/State: Control Game Syncs
+- Set RTPC Value: Real-time parameter control
+- Spatial Audio components: Rooms, Portals
+
+**Spatial Audio in UE:**
+- AkSpatialAudioVolume: Define acoustic spaces
+- AkLateReverbComponent: Room reverb
+- AkPortalComponent: Connect rooms
+- Geometry for reflections and diffraction
+
+## Wwise and Unity Integration
+
+Wwise integrates with Unity via the Wwise Unity Integration package.
+
+**Setup:**
+- Install via Audiokinetic Launcher or Unity Package Manager
+- Link Wwise project in Unity's Wwise Settings
+- Generate SoundBanks
+
+**Unity Components:**
+- AkEvent: Post events on game objects
+- AkSwitch: Set switch values
+- AkState: Set state values
+- AkBank: Load/unload SoundBanks
+- AkEnvironment: Define reverb zones
+- AkRoom / AkRoomPortal: Spatial audio
+- AkGameObj: Register Unity objects with Wwise
+
+**API Usage (C#):**
+- AkSoundEngine.PostEvent(): Trigger events
+- AkSoundEngine.SetSwitch(): Change switch
+- AkSoundEngine.SetState(): Change state
+- AkSoundEngine.SetRTPCValue(): Set game parameter
+- AkSoundEngine.RegisterGameObj(): Register game object
+- AkSoundEngine.SetObjectPosition(): Update 3D position
+
+## Dialogue and Localization
+
+Wwise provides tools for managing dialogue and localized audio content.
+
+**Dialogue Event:**
+- Dynamic voice selection based on multiple criteria
+- Decision tree with multiple axes (Speaker, Emotion, Context)
+- Fallback paths for missing combinations
+
+**Localization:**
+- Language-specific audio organized by language folders
+- Wwise manages language switching at runtime
+- All languages share the same event/structure
+- Per-language SoundBank generation
+
+**Voice Management:**
+- Voice objects in Actor-Mixer Hierarchy
+- Separate from SFX for independent control
+- Ducking: auto-reduce music/SFX during dialogue
+- Priority: ensure dialogue is always audible
+
+## HDR (High Dynamic Range) Audio
+
+HDR audio in Wwise manages the dynamic range of the overall audio mix.
+
+**Concept:**
+- Like HDR in visual rendering: wide dynamic range compressed for output
+- Window slides across the dynamic range
+- Sounds outside the window are attenuated or virtualized
+- Loudest sounds always audible
+
+**Configuration:**
+- Enable HDR on audio buses
+- HDR Envelope Tracking: peak or RMS
+- HDR Threshold: level at which HDR kicks in
+- HDR Ratio: compression ratio
+- HDR Release Time: how quickly window slides down
+
+**Use Cases:**
+- Open world games with many simultaneous sounds
+- Maintaining audibility of important sounds
+- Automatic mixing based on loudness
+
+## Wwise Terminology Glossary
+
+Common terms used in Wwise:
+
+- **Actor-Mixer**: A grouping container in the sound hierarchy that applies shared properties to its children
+- **Attenuation**: How audio properties change with distance from the listener
+- **Auxiliary Bus**: A bus used for send-based effects like reverb
+- **Blend Container**: Crossfades between children based on a game parameter
+- **Conversion Settings**: Platform-specific audio encoding settings
+- **Ducking**: Automatic volume reduction of buses when another bus is active
+- **Event**: A named action that triggers sound playback or property changes
+- **Game Object**: A game-side entity registered with Wwise for positioned audio
+- **Game Parameter (RTPC)**: A real-time continuous value controlling audio properties
+- **Init Bank**: The mandatory SoundBank containing project metadata
+- **Listener**: The audio receiver position (usually camera or player)
+- **Master Audio Bus**: The root bus of the entire mixing hierarchy
+- **Playback Limit**: Maximum simultaneous voice instances for an object
+- **Random Container**: Plays children randomly with anti-repetition
+- **Sequence Container**: Plays children in defined order
+- **ShareSet**: A reusable preset (attenuation, effects, conversion)
+- **SoundBank**: A package of audio data and metadata for runtime
+- **Source Plug-in**: A plug-in that generates audio programmatically
+- **Spatialization**: Rendering audio in 3D space relative to listener
+- **State**: A global game sync affecting all game objects
+- **Streaming**: Playing audio directly from disk without full preload
+- **Switch**: A per-game-object game sync for discrete value selection
+- **Switch Container**: Selects children based on Switch or State value
+- **Trigger**: A one-shot game sync used for stingers in music
+- **Virtual Voice**: A voice below audibility threshold, tracked but not rendered
+- **Voice**: A single instance of a playing sound
+- **WAAPI**: Wwise Authoring API for external tool integration
+- **WAQL**: Wwise Authoring Query Language for object queries
+- **Work Unit**: A file-level organizational unit (.wwu) in the Wwise project

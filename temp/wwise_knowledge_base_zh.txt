@@ -1,0 +1,590 @@
+## Wwise 概述
+
+Wwise（Wave Works Interactive Sound Engine）是 Audiokinetic 开发的专业交互音频中间件。它为游戏和交互媒体提供完整的音频制作管线，将声音设计与游戏编程解耦。Wwise 支持所有主流平台，包括 PC、主机（PlayStation、Xbox、Nintendo Switch）、移动端（iOS、Android）和 VR/AR 设备。
+
+核心特性：
+- 实时音频创作和性能分析
+- 交互音乐系统
+- 空间音频与 3D 定位
+- 动态混音与效果处理
+- SoundBank 管理与流式播放
+- 跨平台部署
+- WAAPI（Wwise 创作 API）用于工具集成
+
+## 项目结构
+
+Wwise 项目由以下主要部分组成：
+
+1. **Actor-Mixer 层级**：组织音频资产的核心结构
+   - Sound（SFX）、Voice（语音）
+   - Random/Sequence Container（随机/顺序容器）
+   - Switch Container（切换容器）
+   - Blend Container（混合容器）
+   - Actor-Mixer（分组节点）
+
+2. **Interactive Music 层级**：自适应音乐系统
+   - Music Segment（音乐片段）
+   - Music Playlist（音乐播放列表）
+   - Music Switch Container（音乐切换容器）
+
+3. **Master-Mixer 层级**：音频总线路由与混音
+   - Master Audio Bus（主音频总线）
+   - Audio Bus（子总线）
+   - Auxiliary Bus（辅助总线，用于环境效果）
+
+4. **Events（事件）**：游戏代码与 Wwise 之间的桥梁
+   - Play（播放）、Stop（停止）、Pause（暂停）、Resume（恢复）
+   - Set Switch、Set State、Set Game Parameter
+   - Seek（定位跳转）
+
+5. **Game Syncs（游戏同步）**：游戏到音频的实时通信
+   - Switch：离散状态切换（如地面材质类型）
+   - State：全局状态切换（如菜单/游戏中/过场）
+   - Game Parameter（RTPC）：连续值参数（如距离、速度）
+   - Trigger：一次性触发通知（如 Stinger 触发器）
+
+6. **SoundBank（音频包）**：运行时音频数据打包
+   - Init Bank（初始化包，必须首先加载）
+   - 用户自定义 Bank
+   - 自动定义 Bank（按事件/总线自动生成）
+
+7. **Work Unit（工作单元）**：文件级组织单位
+   - 物理 .wwu 文件
+   - 支持团队成员通过版本控制共享
+
+## Actor-Mixer 层级详解
+
+Actor-Mixer 层级是 Wwise 中组织音频资产的核心结构。
+
+**音频对象：**
+- Sound SFX：单个音频文件或插件生成的音效
+- Sound Voice：本地化的语音/对话内容
+
+**容器：**
+- Random Container（随机容器）：随机播放子对象，支持防重复、洗牌模式
+- Sequence Container（顺序容器）：按顺序播放子对象，支持循环和重置
+- Switch Container（切换容器）：根据 Switch 或 State 值选择子对象
+- Blend Container（混合容器）：基于 Game Parameter 在子对象间交叉淡入淡出
+
+**Actor-Mixer（分组节点）：**
+- 将共享属性应用到所有子对象
+- 属性级联传递：音量、音高、滤波器、效果器、定位
+- 覆盖机制：子对象可以覆盖父级属性
+
+**属性继承：**
+- Volume（音量）、Pitch（音高）、LPF（低通滤波）、HPF（高通滤波）以累加方式级联
+- Positioning（定位）、Effects（效果器）、Attenuation（衰减）可以在每个层级被覆盖
+- Playback Limit（播放限制）和 Priority（优先级）可继承也可覆盖
+
+## 交互音乐系统
+
+Wwise 的交互音乐系统可以实现动态、自适应的音乐，实时响应游戏事件。
+
+**Music Segment（音乐片段）：**
+- 音乐系统的基本构建单元
+- 包含一个或多个 Music Track（音频层）
+- 拥有 Entry/Exit Cue（进入/退出标记）用于过渡时机控制
+- 由拍号和速度定义时长
+
+**Music Track（音乐轨道）：**
+- Music Segment 内的音频层
+- 类型：Normal（普通）、Random Step（随机步进）、Sequence Step（顺序步进）、Switch（切换）
+- 子轨道用于变奏和叠层
+
+**Music Playlist Container（播放列表容器）：**
+- 按顺序排列 Music Segment
+- 支持：顺序、随机、连续播放
+- 每个片段或整个列表可设置循环次数
+
+**Music Switch Container（音乐切换容器）：**
+- 基于 Game Sync 在音乐段落间切换
+- 过渡规则定义切换方式
+- 支持：立即、下一拍、下一小节、下一 Cue、Exit Cue 过渡
+
+**过渡规则：**
+- Source（源）：淡出类型、时长、偏移
+- Destination（目标）：淡入类型、时长、偏移
+- Transition Segment（过渡片段）：可选的桥接片段
+- Pre-entry / Post-exit 区域
+- Stinger：由游戏事件触发的音乐重音
+
+## 音频总线架构
+
+Master-Mixer 层级定义音频路由和混音架构。
+
+**Master Audio Bus（主总线）：**
+- 所有音频路由的根节点
+- 所有声音最终通过此总线输出
+- 控制主音量和最终输出
+
+**Audio Bus（音频总线）：**
+- 用于分组和处理的子总线
+- 常见组织方式：SFX Bus、Music Bus、Voice Bus、Ambient Bus
+- 每个总线可以有独立的音量、效果器、测量
+- 总线可以无限嵌套
+
+**Auxiliary Bus（辅助总线）：**
+- 用于 Send 效果（混响、延迟）
+- Game-Defined Aux Send：由游戏通过 RTPC/定位控制
+- User-Defined Aux Send：由设计师手动配置
+- 基于监听器位置的辅助发送
+
+**总线属性：**
+- Volume（音量）、Pitch（音高）、LPF、HPF
+- Playback Limit（最大声部数）
+- HDR（高动态范围）设置
+- Ducking（闪避/压低其他总线音量）
+- Effects Chain（效果器链）
+
+**Ducking（音量闪避）：**
+- 当特定总线活跃时自动降低其他总线音量
+- 可配置：目标总线、音量降低量、淡入淡出时间
+- 闪避源停止后的恢复时间
+- 常见用法：播放对话时压低音乐和环境音
+
+## 事件与动作
+
+Event 是游戏与 Wwise 通信的主要机制。
+
+**事件类型与动作：**
+- Play：开始播放声音/音乐对象
+- Stop：停止播放（可选淡出）
+- Pause / Resume：暂停/恢复播放
+- Break：停止循环（播放当前迭代到结束）
+- Seek：跳转到音频中的指定位置
+- Set Switch：改变游戏对象的 Switch 值
+- Set State：改变全局 State 值
+- Set Game Parameter：修改 RTPC 值
+- Reset Game Parameter：将 RTPC 恢复为默认值
+- Enable/Disable Bypass：开关效果器旁通
+- Post Event：触发另一个事件
+
+**事件属性：**
+- Scope：作用域（Game Object 或 Global）
+- Probability：随机触发概率
+- Delay：执行前的延迟时间
+- Fade-in/Fade-out：渐变效果
+
+**命名规范（最佳实践）：**
+- Play_[对象名]：如 Play_Footstep、Play_Music_Combat
+- Stop_[对象名]：如 Stop_Music_Combat
+- Set_[同步名]：如 Set_Surface_Wood
+- Pause_All、Resume_All 用于全局控制
+
+## Game Syncs - Switch、State、RTPC、Trigger
+
+Game Sync 提供游戏引擎与 Wwise 之间的实时通信。
+
+**Switch（切换）：**
+- 绑定到单个 Game Object 的离散值
+- 每个 Game Object 可以同时拥有不同的 Switch 值
+- 示例：材质表面类型（Wood / Metal / Grass / Concrete）
+- 与 Switch Container 配合使用以选择对应的声音
+- 可设置未指定 Game Object 的默认 Switch 值
+
+**State（状态）：**
+- 影响所有 Game Object 的全局值
+- 每个 State Group 同一时刻只有一个活跃 State
+- 示例：游戏状态（Menu / Gameplay / Cutscene / Paused）
+- 可以修改任意属性：音量、音高、LPF、总线音量等
+- State 过渡可以是瞬间的或带插值的
+
+**Game Parameter（RTPC - 实时参数控制）：**
+- 连续浮点值
+- 绑定到 Game Object 或全局范围
+- 通过曲线映射到音频属性：
+  - 音量 vs 距离
+  - 音高 vs 速度
+  - LPF vs 遮挡度
+- 内建参数：Distance（距离）、Azimuth（方位角）、Elevation（仰角）、Emitter Cone
+- 可自定义参数
+- 插值：Slew Rate 用于平滑过渡
+
+**Trigger（触发器）：**
+- 游戏到 Wwise 的一次性通知
+- 用于交互音乐中的 Stinger
+- 发射即忘：没有持久状态
+- 示例：Player_Hit 触发器 → 音乐重音
+
+## 衰减与距离
+
+Attenuation 定义声音随距离变化的行为。
+
+**衰减曲线：**
+- Volume vs Distance：主要的距离衰减
+- LPF vs Distance：距离产生的低通滤波
+- HPF vs Distance：距离产生的高通滤波
+- Spread vs Distance：立体声/环绕声扩展角度
+- Focus vs Distance：声音图像的聚焦程度
+
+**曲线类型：**
+- Linear（线性）、Logarithmic（对数，底数 3）、SCurve、InversedSCurve
+- 自定义曲线（任意控制点）
+- Max Distance：超出此距离后声音静音（或达到最小值）
+
+**Attenuation ShareSet（衰减共享集）：**
+- 可复用的衰减预设
+- 应用到 Sound、Container 或 Actor-Mixer
+- 可以在层级的任何级别被覆盖
+
+**锥形衰减（Cone Attenuation）：**
+- 定向声音发射
+- Inner Angle：全音量区域
+- Outer Angle：衰减区域
+- 外角属性：音量和 LPF
+
+## 空间音频与定位
+
+Wwise 提供全面的空间音频能力。
+
+**定位模式：**
+- 2D：无空间化（立体声/环绕声平移）
+- 3D：基于发射器/监听器位置的完整 3D 空间化
+- Listener-Relative Routing：用于 UI 声音、音乐
+
+**3D 空间化：**
+- 发射器相对于监听器的位置
+- 支持：Stereo、5.1、7.1、7.1.4、Ambisonics
+- 扬声器平移或 3D 空间化引擎
+- 高度通道用于 Atmos/头顶声音
+
+**Rooms 和 Portals（空间音频）：**
+- Room：具有混响属性的声学空间
+- Portal：房间之间的连接
+- Diffraction（衍射）：声音绕过障碍物弯曲传播
+- Transmission（透射）：声音穿过墙壁传播
+- 基于房间几何形状的混响估算
+
+**Reflect 插件：**
+- 早期反射模拟
+- 基于光线追踪的几何反射
+- 一阶和高阶反射
+- 基于材质的实时滤波和延迟
+
+## 效果器与处理
+
+Wwise 包含全面的音频效果器套件。
+
+**内建效果器：**
+- Wwise Compressor：动态范围压缩
+- Wwise Expander：动态范围扩展
+- Wwise Parametric EQ：多频段均衡器
+- Wwise Delay：简单延迟
+- Wwise Matrix Reverb：算法混响
+- Wwise RoomVerb：房间模拟混响
+- Wwise Meter：电平测量与分析
+- Wwise Gain：简单增益调节
+- Wwise Tremolo：幅度调制
+- Wwise Flanger：镶边效果
+- Wwise Guitar Distortion：吉他失真
+- Wwise Time Stretch：时间/音高变换
+- Wwise Harmonizer：音高和声
+- Wwise Stereo Delay：带反馈的立体声延迟
+- Wwise Recorder：录制音频到文件
+
+**效果器放置位置：**
+- Sound/Container 对象上（插入效果）
+- Audio Bus 上（总线效果）
+- Auxiliary Bus 上（发送效果）
+- 顺序很重要：效果器按链式顺序处理
+
+**ShareSet（共享集）：**
+- 可复用的效果器预设
+- 可跨多个对象/总线共享
+- 修改一处，全部更新
+- 可以在实例级别自定义
+
+## SoundBank 与媒体管理
+
+SoundBank 将音频数据和元数据打包供运行时使用。
+
+**Init Bank（初始化包）：**
+- 始终生成，必须最先加载
+- 包含：总线层级、State/Switch 组定义、RTPC 定义
+- 任何音频播放都需要它
+
+**用户自定义 SoundBank：**
+- 由设计师组织的音频包
+- 按游戏关卡、功能、使用频率分组
+- 包含：Event、结构、媒体文件
+- 平衡：包数量 vs 包大小 vs 内存占用
+
+**自动定义 SoundBank：**
+- 按 Event 自动生成
+- 简化包管理
+- 每个事件对应独立的包文件
+
+**Streaming（流式播放）：**
+- 播放期间从磁盘流式读取音频
+- Prefetch Length：预加载到内存的初始数据量
+- Zero-Latency：缓存流的开头部分
+- 适用于：长环境音、音乐、对话
+
+**Conversion Settings（转换设置）：**
+- 每平台的音频格式转换
+- 格式：PCM、Vorbis、Opus、ADPCM、WEM
+- 每种格式的质量设置
+- Conversion ShareSet 确保一致性
+
+## Profiler 与性能监控
+
+Wwise Profiler 提供实时监控和调试工具。
+
+**Capture Session（捕获会话）：**
+- 记录游戏过程中的所有音频活动
+- 捕获日志：事件、声部播放、总线活动
+- 所有音频事件的时间线视图
+
+**性能指标：**
+- Voice Count（声部数）：活跃/虚拟/总计
+- CPU Usage：按插件、按总线的 CPU 占用
+- Memory：已加载媒体、流式缓冲区
+- Bandwidth：磁盘读取速率
+
+**Voice Inspector（声部检查器）：**
+- 所有播放中声部的实时视图
+- 属性：音量、优先级、虚拟状态
+- Voice Graph：信号流可视化
+
+**Game Object Monitor（游戏对象监视器）：**
+- 跟踪游戏对象的位置和属性
+- 距离计算
+- 每个对象的 Switch/State 值
+
+## WAAPI 概述
+
+WAAPI（Wwise Authoring API）使外部工具和脚本能够与 Wwise 创作应用程序交互。
+
+**通信协议：**
+- 使用 WAMP（Web Application Messaging Protocol）
+- 默认连接：ws://127.0.0.1:8080/waapi
+- 基于 JSON-RPC 的请求/响应
+- 支持：过程调用和主题订阅
+
+**主要 API 类别：**
+- ak.wwise.core：核心 Wwise 操作
+  - core.object：创建、获取、设置、删除、移动、复制对象
+  - core.audio：导入音频文件
+  - core.transport：播放控制
+  - core.soundbank：生成 SoundBank
+  - core.remote：远程连接管理
+  - core.undo：撤销/重做操作
+  - core.profiler：Profiler 数据访问
+  - core.log：日志管理
+
+- ak.wwise.ui：UI 相关操作
+  - ui.project：打开/关闭项目
+  - ui.commands：执行 UI 命令
+
+- ak.soundengine：Sound Engine 操作
+  - 触发事件、设置 Switch/State、设置 RTPC 值
+
+**对象引用方式：**
+- By ID (GUID)：唯一标识符
+- By path：如 "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound"
+- By name：作用域内的对象名称
+- By search：使用 WAQL 查询
+
+**WAQL（Wwise 创作查询语言）：**
+- 类似 SQL 的 Wwise 对象查询语言
+- 按类型、名称、属性值选择对象
+- 遍历层级关系
+- 支持条件过滤和正则表达式
+- 示例：$ from type Sound where Volume < -6
+
+## Wwise 对象属性详解
+
+Wwise 对象上的常用属性：
+
+**音频属性：**
+- Volume：输出增益，单位 dB（默认：0）
+- Pitch：音高偏移，单位音分（默认：0）
+- Lowpass：低通滤波器截止值（0-100）
+- Highpass：高通滤波器截止值（0-100）
+- MakeUpGain：额外增益补偿
+
+**播放属性：**
+- IsLoopingEnabled：启用/禁用循环
+- LoopCount：循环次数（0 = 无限循环）
+- IsLoopingInfinite：无限循环标志
+- InitialDelay：播放前的延迟时间（秒）
+
+**随机化属性：**
+- RandomAvoidRepeatingCount：避免重复最近 N 个项目
+- IsNonCachable：禁用随机容器缓存
+- RandomOrSequence：随机 vs 顺序播放模式
+
+**优先级与限制：**
+- Priority：声部优先级（0-100，越高越重要）
+- PlaybackLimit：最大同时声部数
+- OverLimitBehavior：超限行为（淘汰最旧、淘汰最新、按优先级淘汰）
+- VirtualVoiceBehavior：虚拟声部行为（继续、从已过去位置播放、从头开始）
+
+**定位：**
+- IsPositioningEnabled：启用 3D 定位
+- SpeakerPanning：2D 平移模式
+- Spatialization3D：3D 渲染模式
+- AttenuationID：引用 Attenuation ShareSet
+
+**输出总线：**
+- OutputBusId：目标输出总线
+- OutputBusVolume：输出到总线的音量
+- GameAuxSendVolume：Game-Defined 辅助发送音量
+- UserAuxSendVolume0-3：User-Defined 辅助总线发送音量
+
+## Wwise 集成最佳实践
+
+将 Wwise 集成到游戏引擎的最佳实践。
+
+**事件设计：**
+- 每个不同的游戏动作对应一个事件
+- 使用描述性命名：Play_Weapon_Fire_Shotgun
+- 按功能在 Work Unit 中分组相关事件
+- 最小化事件数量：用 Switch 代替为每个变体创建独立事件
+
+**内存管理：**
+- 根据游戏上下文加载/卸载 SoundBank
+- 对长音频（>5秒）使用流式播放
+- 用 Profiler 监控内存使用
+- 设置适当的 Prefetch Length
+
+**性能优化：**
+- 为每个总线和全局设置声部限制
+- 对远距离/低音量声音使用 Virtual Voice
+- 确定重要声音的优先级（对话 > 音效 > 环境音）
+- 最小化活跃的效果器链
+
+**游戏对象管理：**
+- 在触发事件前注册游戏对象
+- 不再需要时注销
+- 定期更新 3D 声音的位置
+- 使用游戏对象范围绑定 Switch 和 RTPC
+
+**组织管理：**
+- 使用 Work Unit 进行团队协作
+- 尽早建立命名规范
+- 为可复用设置创建 ShareSet
+- 记录 Switch/State 组及其用途
+
+## Wwise 与 Unreal Engine 集成
+
+Wwise 通过 Wwise UE Integration 插件与 Unreal Engine 集成。
+
+**设置：**
+- 从 Audiokinetic Launcher 安装 Wwise UE Integration
+- 将 Wwise 项目链接到 UE 项目
+- 生成 SoundBank 供 UE 引用
+
+**UE 组件：**
+- AkComponent：附加到 Actor 用于定位音频
+- AkAmbientSound：环境音频发射器
+- AkAudioEvent：蓝图可访问的事件资源
+- AkGameplayStatics：蓝图函数库
+
+**蓝图集成：**
+- Post Event：从蓝图触发 Wwise 事件
+- Set Switch/State：控制 Game Sync
+- Set RTPC Value：实时参数控制
+- 空间音频组件：Rooms、Portals
+
+## Wwise 与 Unity 集成
+
+Wwise 通过 Wwise Unity Integration 包与 Unity 集成。
+
+**设置：**
+- 通过 Audiokinetic Launcher 或 Unity Package Manager 安装
+- 在 Unity 的 Wwise Settings 中链接 Wwise 项目
+- 生成 SoundBank
+
+**Unity 组件：**
+- AkEvent：在游戏对象上触发事件
+- AkSwitch：设置 Switch 值
+- AkState：设置 State 值
+- AkBank：加载/卸载 SoundBank
+- AkEnvironment：定义混响区域
+- AkRoom / AkRoomPortal：空间音频
+- AkGameObj：将 Unity 对象注册到 Wwise
+
+**API 用法（C#）：**
+- AkSoundEngine.PostEvent()：触发事件
+- AkSoundEngine.SetSwitch()：切换 Switch
+- AkSoundEngine.SetState()：设置 State
+- AkSoundEngine.SetRTPCValue()：设置 RTPC
+- AkSoundEngine.RegisterGameObj()：注册游戏对象
+- AkSoundEngine.SetObjectPosition()：更新 3D 位置
+
+## 对话与本地化
+
+Wwise 提供管理对话和本地化音频内容的工具。
+
+**Dialogue Event（对话事件）：**
+- 基于多个条件动态选择语音
+- 使用多轴决策树（说话者、情绪、上下文）
+- 缺失组合的回退路径
+
+**本地化：**
+- 按语言文件夹组织特定语言的音频
+- Wwise 在运行时管理语言切换
+- 所有语言共享相同的事件/结构
+- 按语言生成 SoundBank
+
+**Voice 管理：**
+- Actor-Mixer 层级中的 Voice 对象
+- 与 SFX 分离以便独立控制
+- Ducking：对话播放时自动降低音乐/SFX
+- Priority：确保对话始终可听
+
+## HDR（高动态范围）音频
+
+Wwise 中的 HDR 音频管理整体音频混音的动态范围。
+
+**概念：**
+- 类似于视觉渲染中的 HDR：宽动态范围压缩到输出
+- 窗口在动态范围上滑动
+- 窗口外的声音被衰减或虚拟化
+- 最响的声音始终可听
+
+**配置：**
+- 在音频总线上启用 HDR
+- HDR 包络跟踪：Peak 或 RMS
+- HDR 阈值：HDR 开始生效的电平
+- HDR 比率：压缩比
+- HDR 释放时间：窗口向下滑动的速度
+
+**应用场景：**
+- 拥有大量同时播放声音的开放世界游戏
+- 维持重要声音的可听性
+- 基于响度的自动混音
+
+## Wwise 术语表
+
+Wwise 中常用术语：
+
+- **Actor-Mixer**：声音层级中的分组容器，将共享属性应用到子对象
+- **Attenuation（衰减）**：音频属性随距离变化的方式
+- **Auxiliary Bus（辅助总线）**：用于发送效果（如混响）的总线
+- **Blend Container（混合容器）**：基于 Game Parameter 在子对象间交叉淡化
+- **Conversion Settings（转换设置）**：平台特定的音频编码设置
+- **Ducking（音量闪避）**：当某总线活跃时自动降低其他总线的音量
+- **Event（事件）**：触发声音播放或属性变更的命名动作
+- **Game Object（游戏对象）**：注册到 Wwise 的游戏端实体，用于定位音频
+- **Game Parameter / RTPC**：控制音频属性的实时连续值
+- **Init Bank（初始化包）**：包含项目元数据的必须加载的 SoundBank
+- **Listener（监听器）**：音频接收位置（通常是摄像机或玩家）
+- **Master Audio Bus（主音频总线）**：整个混音层级的根总线
+- **Playback Limit（播放限制）**：对象的最大同时声部实例数
+- **Random Container（随机容器）**：带防重复功能的随机播放子对象
+- **Sequence Container（顺序容器）**：按定义顺序播放子对象
+- **ShareSet（共享集）**：可复用预设（衰减、效果器、转换）
+- **SoundBank（音频包）**：运行时的音频数据和元数据包
+- **Spatialization（空间化）**：相对于监听器在 3D 空间中渲染音频
+- **State（状态）**：影响所有游戏对象的全局 Game Sync
+- **Streaming（流式播放）**：无需完全预加载，直接从磁盘播放音频
+- **Switch（切换）**：绑定到单个游戏对象的离散值 Game Sync
+- **Switch Container（切换容器）**：基于 Switch 或 State 值选择子对象
+- **Trigger（触发器）**：用于音乐 Stinger 的一次性 Game Sync
+- **Virtual Voice（虚拟声部）**：低于可听阈值的声部，被跟踪但不渲染
+- **Voice（声部）**：一个正在播放的声音实例
+- **WAAPI**：用于外部工具集成的 Wwise 创作 API
+- **WAQL**：用于对象查询的 Wwise 创作查询语言
+- **Work Unit（工作单元）**：Wwise 项目中的文件级组织单位（.wwu）

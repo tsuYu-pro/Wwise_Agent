@@ -1,0 +1,740 @@
+## WAAPI 连接设置
+
+WAAPI 使用 WAMP（Web Application Messaging Protocol）通过 WebSocket 通信。默认端点：ws://127.0.0.1:8080/waapi
+
+前提条件：
+- Wwise 创作应用程序必须正在运行
+- WAAPI 必须已启用：Project > Project Settings > WAMP > Enable WAAPI
+- 默认端口：8080（可在 Project Settings 中配置）
+
+Python 连接示例（使用 waapi-client）：
+```python
+from waapi import WaapiClient
+
+# 连接到 Wwise
+client = WaapiClient()
+
+# 或指定自定义 URL
+client = WaapiClient(url="ws://127.0.0.1:8080/waapi")
+
+# 完成后务必断开连接
+client.disconnect()
+```
+
+## 使用 ak.wwise.core.object.create 创建对象
+
+在 Wwise 项目层级中创建新对象。
+
+基本创建声音对象：
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "Sound",
+        "name": "MyNewSound",
+        "onNameConflict": "rename"  # 或 "replace"、"fail"
+    }
+)
+# 返回: {"id": "{GUID}", "name": "MyNewSound", "path": "..."}
+```
+
+带属性创建：
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "Sound",
+        "name": "Footstep_Concrete",
+        "@Volume": -6.0,
+        "@Pitch": 0,
+        "@Lowpass": 0,
+        "@IsLoopingEnabled": False
+    }
+)
+```
+
+创建嵌套层级结构：
+```python
+result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+        "type": "RandomSequenceContainer",
+        "name": "Footsteps",
+        "children": [
+            {"type": "Sound", "name": "Footstep_01"},
+            {"type": "Sound", "name": "Footstep_02"},
+            {"type": "Sound", "name": "Footstep_03"}
+        ]
+    }
+)
+```
+
+## 使用 ak.wwise.core.object.get 查询对象
+
+从 Wwise 项目中检索对象，支持 WAQL 和路径查询。
+
+通过路径查询：
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]}
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```
+
+获取所有子对象：
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]},
+        "transform": [{"select": ["children"]}]
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```
+
+按类型查询（使用 WAQL）：
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"search": [{"type": ["Event"]}]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+```
+
+查询并返回属性值：
+```python
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound"]}
+    },
+    options={"return": ["id", "name", "@Volume", "@Pitch", "@Lowpass", "@IsLoopingEnabled"]}
+)
+```
+
+WAQL 查询示例：
+```python
+# 查找所有音量低于 -6dB 的 Sound
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": ["$ from type Sound where Volume < -6"]}
+    },
+    options={"return": ["id", "name", "@Volume"]}
+)
+
+# 按名称模式查找对象
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": ['$ from type Sound where name = "Footstep*"']}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+```
+
+## 使用 ak.wwise.core.object.set 设置对象属性
+
+修改现有 Wwise 对象的属性值。
+
+设置单个属性：
+```python
+client.call(
+    "ak.wwise.core.object.set",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "@Volume": -3.0
+    }
+)
+```
+
+设置多个属性：
+```python
+client.call(
+    "ak.wwise.core.object.set",
+    {
+        "object": "{object-guid}",
+        "@Volume": -6.0,
+        "@Pitch": 200,
+        "@Lowpass": 50,
+        "@IsLoopingEnabled": True
+    }
+)
+```
+
+## 使用 ak.wwise.core.object.delete 删除对象
+
+从 Wwise 项目中移除对象。
+
+```python
+client.call(
+    "ak.wwise.core.object.delete",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\OldSound"
+    }
+)
+```
+
+## 移动和复制对象
+
+移动对象：
+```python
+client.call(
+    "ak.wwise.core.object.move",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Weapons",
+        "onNameConflict": "rename"
+    }
+)
+```
+
+复制对象：
+```python
+client.call(
+    "ak.wwise.core.object.copy",
+    {
+        "object": "\\Actor-Mixer Hierarchy\\Default Work Unit\\MySound",
+        "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Backup",
+        "onNameConflict": "rename"
+    }
+)
+```
+
+## 使用 ak.wwise.core.audio.import 导入音频文件
+
+将音频文件导入到 Wwise 项目中。
+
+单文件导入：
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "useExisting",  # 或 "createNew"、"replaceExisting"
+        "imports": [
+            {
+                "audioFile": "C:/Audio/footstep_01.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<Sound>Footstep_01"
+            }
+        ]
+    }
+)
+```
+
+批量导入：
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "createNew",
+        "imports": [
+            {
+                "audioFile": "C:/Audio/footstep_01.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_01"
+            },
+            {
+                "audioFile": "C:/Audio/footstep_02.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_02"
+            },
+            {
+                "audioFile": "C:/Audio/footstep_03.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Default Work Unit\\<RandomSequenceContainer>Footsteps\\<Sound>Footstep_03"
+            }
+        ]
+    }
+)
+```
+
+带语言的导入：
+```python
+client.call(
+    "ak.wwise.core.audio.import",
+    {
+        "importOperation": "useExisting",
+        "imports": [
+            {
+                "audioFile": "C:/VO/zh/greeting.wav",
+                "objectPath": "\\Actor-Mixer Hierarchy\\Dialogue\\<Sound>Greeting",
+                "importLanguage": "Chinese"
+            }
+        ]
+    }
+)
+```
+
+## 创建 Event
+
+Event 将游戏动作与 Wwise 播放关联起来。
+
+创建 Play 事件：
+```python
+# 第1步：创建 Event
+event_result = client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Events\\Default Work Unit",
+        "type": "Event",
+        "name": "Play_Footstep"
+    }
+)
+
+# 第2步：添加一个 Play Action，目标指向一个声音对象
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": event_result["path"],
+        "type": "Action",
+        "name": "",
+        "@ActionType": 1,  # 1 = Play
+        "@Target": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Footsteps"
+    }
+)
+```
+
+## 管理 Game Sync（Switch、State、RTPC）
+
+创建 Switch 组：
+```python
+# 创建 Switch Group
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Switches\\Default Work Unit",
+        "type": "SwitchGroup",
+        "name": "Surface_Type",
+        "children": [
+            {"type": "Switch", "name": "Concrete"},
+            {"type": "Switch", "name": "Wood"},
+            {"type": "Switch", "name": "Metal"},
+            {"type": "Switch", "name": "Grass"}
+        ]
+    }
+)
+```
+
+创建 State 组：
+```python
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\States\\Default Work Unit",
+        "type": "StateGroup",
+        "name": "GameState",
+        "children": [
+            {"type": "State", "name": "Gameplay"},
+            {"type": "State", "name": "Menu"},
+            {"type": "State", "name": "Cutscene"},
+            {"type": "State", "name": "Paused"}
+        ]
+    }
+)
+```
+
+创建 Game Parameter（RTPC）：
+```python
+client.call(
+    "ak.wwise.core.object.create",
+    {
+        "parent": "\\Game Parameters\\Default Work Unit",
+        "type": "GameParameter",
+        "name": "Player_Health",
+        "@Min": 0,
+        "@Max": 100,
+        "@SimulationValue": 100
+    }
+)
+```
+
+## 使用 ak.wwise.core.transport 控制传输
+
+在 Wwise 创作工具中控制音频播放。
+
+创建传输并播放：
+```python
+# 为对象创建传输控制实例
+transport = client.call(
+    "ak.wwise.core.transport.create",
+    {
+        "object": "\\Events\\Default Work Unit\\Play_Footstep"
+    }
+)
+
+transport_id = transport["transport"]
+
+# 播放
+client.call(
+    "ak.wwise.core.transport.executeAction",
+    {
+        "transport": transport_id,
+        "action": "play"
+    }
+)
+
+# 停止
+client.call(
+    "ak.wwise.core.transport.executeAction",
+    {
+        "transport": transport_id,
+        "action": "stop"
+    }
+)
+
+# 完成后销毁传输
+client.call(
+    "ak.wwise.core.transport.destroy",
+    {
+        "transport": transport_id
+    }
+)
+```
+
+## 使用 ak.wwise.core.soundbank 生成 SoundBank
+
+生成 SoundBank 音频包：
+```python
+# 生成所有 SoundBank
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": []  # 空数组 = 生成全部
+    }
+)
+
+# 生成指定 SoundBank
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": [
+            {"name": "MyGameBank"}
+        ]
+    }
+)
+
+# 指定平台和语言生成
+client.call(
+    "ak.wwise.core.soundbank.generate",
+    {
+        "soundbanks": [{"name": "MyGameBank"}],
+        "platforms": ["Windows"],
+        "languages": ["Chinese"]
+    }
+)
+```
+
+## 使用 ak.wwise.core.undo 管理撤销/重做
+
+管理撤销操作：
+```python
+# 开始撤销组
+client.call("ak.wwise.core.undo.beginGroup")
+
+# ... 执行多个操作 ...
+
+# 结束撤销组并设置标签
+client.call(
+    "ak.wwise.core.undo.endGroup",
+    {
+        "displayName": "批量创建声音对象"
+    }
+)
+
+# 撤销上一次操作
+client.call("ak.wwise.core.undo.undo")
+
+# 重做
+client.call("ak.wwise.core.undo.redo")
+
+# 取消撤销组（丢弃所有更改）
+client.call("ak.wwise.core.undo.cancelGroup")
+```
+
+## 订阅主题事件
+
+WAAPI 支持发布/订阅模式实现实时通知：
+```python
+# 订阅对象名称变更
+def on_name_changed(event):
+    print(f"对象已重命名: {event}")
+
+handler = client.subscribe(
+    "ak.wwise.core.object.nameChanged",
+    on_name_changed,
+    options={"return": ["id", "name", "path"]}
+)
+
+# 订阅选择变更
+def on_selection_changed(event):
+    print(f"当前选择: {event}")
+
+handler2 = client.subscribe(
+    "ak.wwise.ui.selectionChanged",
+    on_selection_changed,
+    options={"return": ["id", "name", "type"]}
+)
+
+# 取消订阅
+handler.unsubscribe()
+handler2.unsubscribe()
+```
+
+## 项目操作
+
+打开和管理 Wwise 项目：
+```python
+# 获取项目信息
+info = client.call("ak.wwise.core.getInfo")
+print(f"Wwise 版本: {info['version']['displayName']}")
+print(f"项目名称: {info.get('projectName', '未知')}")
+
+# 保存项目
+client.call("ak.wwise.ui.project.save")
+
+# 关闭项目
+client.call("ak.wwise.ui.project.close")
+
+# 打开项目
+client.call(
+    "ak.wwise.ui.project.open",
+    {
+        "path": "C:/WwiseProjects/MyGame/MyGame.wproj"
+    }
+)
+```
+
+## 错误处理最佳实践
+
+稳健的 WAAPI 错误处理：
+```python
+from waapi import WaapiClient, CannotConnectToWaapiException
+
+try:
+    client = WaapiClient()
+except CannotConnectToWaapiException:
+    print("错误：无法连接到 Wwise。请确认 Wwise 正在运行且已启用 WAAPI。")
+    exit(1)
+
+try:
+    result = client.call(
+        "ak.wwise.core.object.create",
+        {
+            "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit",
+            "type": "Sound",
+            "name": "TestSound"
+        }
+    )
+    if result:
+        print(f"已创建: {result['path']}")
+    else:
+        print("操作未返回结果")
+except Exception as e:
+    print(f"WAAPI 错误: {e}")
+finally:
+    client.disconnect()
+```
+
+## 批量操作模式
+
+使用撤销组进行高效批量操作：
+```python
+client = WaapiClient()
+
+# 将批量操作包装在撤销组中
+client.call("ak.wwise.core.undo.beginGroup")
+
+try:
+    # 创建 50 个声音对象
+    for i in range(50):
+        client.call(
+            "ak.wwise.core.object.create",
+            {
+                "parent": "\\Actor-Mixer Hierarchy\\Default Work Unit\\BatchSounds",
+                "type": "Sound",
+                "name": f"Sound_{i:03d}",
+                "@Volume": -3.0,
+                "onNameConflict": "rename"
+            }
+        )
+
+    client.call(
+        "ak.wwise.core.undo.endGroup",
+        {"displayName": "批量创建 50 个声音对象"}
+    )
+    print("批量创建完成。可作为单次操作撤销。")
+
+except Exception as e:
+    client.call("ak.wwise.core.undo.cancelGroup")
+    print(f"批量操作失败，所有更改已回滚: {e}")
+
+client.disconnect()
+```
+
+## 常用 WAAPI 返回选项
+
+指定查询返回的数据字段：
+```python
+# 常用返回选项
+options = {
+    "return": [
+        "id",            # GUID 唯一标识符
+        "name",          # 对象名称
+        "type",          # 对象类型（Sound、Event 等）
+        "path",          # 在层级中的完整路径
+        "shortId",       # 运行时短 ID
+        "classId",       # 类标识符
+        "category",      # 对象分类
+        "filePath",      # 源文件路径
+        "workunit",      # 所属 Work Unit
+        "owner",         # 所有者对象
+        "parent",        # 父对象
+        "isPlayable",    # 是否可播放
+        "childrenCount", # 子对象数量
+        "notes",         # 设计师备注
+        "@Volume",       # 音量属性
+        "@Pitch",        # 音高属性
+        "@Lowpass",      # 低通滤波器
+        "@Highpass",     # 高通滤波器
+        "@IsLoopingEnabled",  # 是否启用循环
+    ]
+}
+
+result = client.call(
+    "ak.wwise.core.object.get",
+    {"from": {"search": [{"type": ["Sound"]}]}},
+    options=options
+)
+```
+
+## 通过 WAAPI 访问 Profiler
+
+以编程方式访问性能分析数据：
+```python
+# 开始捕获
+client.call("ak.wwise.core.profiler.startCapture")
+
+# ... 游戏运行中 ...
+
+# 停止捕获
+client.call("ak.wwise.core.profiler.stopCapture")
+
+# 获取声部活动信息
+voices = client.call(
+    "ak.wwise.core.profiler.getVoices",
+    {"time": {"type": "user", "value": 0}}
+)
+
+# 获取性能指标
+perf = client.call("ak.wwise.core.profiler.getCursorTimestamp")
+```
+
+## 远程连接
+
+连接到远程设备上运行的 Wwise：
+```python
+# 获取可用的远程连接
+connections = client.call("ak.wwise.core.remote.getAvailableConsoles")
+
+# 连接到远程设备
+client.call(
+    "ak.wwise.core.remote.connect",
+    {
+        "host": "192.168.1.100",
+        "commandPort": 24024
+    }
+)
+
+# 断开远程连接
+client.call("ak.wwise.core.remote.disconnect")
+```
+
+## WAQL 高级查询
+
+用于复杂搜索的高级 WAQL 查询模式：
+
+```python
+# 查找所有 Event
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type Event'
+        ]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+
+# 查找所有 Switch Container
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type SwitchContainer'
+        ]}
+    },
+    options={"return": ["id", "name", "path"]}
+)
+
+# 按名称模式查找对象（包含 "Weapon" 的 Sound）
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"query": [
+            '$ from type Sound where name : "Weapon"'
+        ]}
+    },
+    options={"return": ["id", "name", "path", "@Volume"]}
+)
+
+# 获取指定路径下的所有后代对象
+result = client.call(
+    "ak.wwise.core.object.get",
+    {
+        "from": {"path": ["\\Actor-Mixer Hierarchy\\Default Work Unit"]},
+        "transform": [
+            {"select": ["descendants"]},
+            {"where": ["type:isIn", ["Sound", "RandomSequenceContainer"]]}
+        ]
+    },
+    options={"return": ["id", "name", "type", "path"]}
+)
+```
+
+## Switch Container 分配管理
+
+管理 Switch Container 中 Switch 值到子对象的映射关系：
+
+```python
+# 获取 Switch Container 的当前分配
+assignments = client.call(
+    "ak.wwise.core.switchContainer.getAssignments",
+    {
+        "id": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Footsteps_Switch"
+    }
+)
+
+# 添加分配：将 Switch 值映射到子对象
+client.call(
+    "ak.wwise.core.switchContainer.addAssignment",
+    {
+        "stateOrSwitch": "\\Switches\\Default Work Unit\\Surface_Type\\Wood",
+        "child": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Footsteps_Switch\\Footstep_Wood"
+    }
+)
+
+# 移除分配
+client.call(
+    "ak.wwise.core.switchContainer.removeAssignment",
+    {
+        "stateOrSwitch": "\\Switches\\Default Work Unit\\Surface_Type\\Wood",
+        "child": "\\Actor-Mixer Hierarchy\\Default Work Unit\\Footsteps_Switch\\Footstep_Wood"
+    }
+)
+```

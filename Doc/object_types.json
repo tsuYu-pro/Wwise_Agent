@@ -1,0 +1,134 @@
+{
+  "types": [
+    {
+      "name": "Sound",
+      "description": "A playable audio object (SFX or Voice). Leaf node in the Actor-Mixer Hierarchy, contains AudioFileSource children.",
+      "properties": ["Volume", "Pitch", "LowPassFilter", "HighPassFilter", "OutputBus", "MakeUpGain", "MaxSoundInstances", "VirtualVoiceBehavior", "IsLoopingEnabled", "IsStreamingEnabled"]
+    },
+    {
+      "name": "Event",
+      "description": "A trigger object in the Events Hierarchy. Contains Action children that define what happens when the Event is posted from the game engine.",
+      "properties": ["MaxReached", "MaxInstancesBehavior"]
+    },
+    {
+      "name": "Action",
+      "description": "A child of an Event. Defines the operation (Play, Stop, Pause, Resume, etc.) and the Target object.",
+      "properties": ["ActionType", "Target", "Delay", "TransitionTime", "FadeTime", "FadeCurve"]
+    },
+    {
+      "name": "Bus",
+      "description": "An audio bus in the Master-Mixer Hierarchy. Routes and mixes audio signals from Sound objects. Supports effects, metering, and ducking.",
+      "properties": ["Volume", "Pitch", "LowPassFilter", "HighPassFilter", "MakeUpGain", "Effect0", "Effect1", "Effect2", "Effect3", "HDR", "AutoDuckingRecoveryTime"]
+    },
+    {
+      "name": "AuxBus",
+      "description": "An auxiliary bus for send-based effects (reverb, delay). Receives audio via Game-Defined or User-Defined Auxiliary Sends.",
+      "properties": ["Volume", "Effect0", "Effect1", "Effect2", "Effect3", "UseGameDefinedAuxSends", "UserAuxSendVolume0"]
+    },
+    {
+      "name": "ActorMixer",
+      "description": "An organizational container in the Actor-Mixer Hierarchy. Groups Sound objects and provides shared property inheritance.",
+      "properties": ["Volume", "Pitch", "LowPassFilter", "HighPassFilter", "OutputBus", "OverrideOutput"]
+    },
+    {
+      "name": "RandomSequenceContainer",
+      "description": "A container that plays its children in random or sequential order. Supports looping, avoidance, and shuffle modes.",
+      "properties": ["Volume", "Pitch", "RandomType", "AvoidRepeatingCount", "NormalOrShuffle", "Loop", "TransitionType"]
+    },
+    {
+      "name": "SwitchContainer",
+      "description": "A container that selects which child to play based on a Switch Group or State Group value. Used for dynamic audio selection.",
+      "properties": ["Volume", "Pitch", "SwitchGroupOrStateGroup", "DefaultSwitchOrState", "ContinuePlayback"]
+    },
+    {
+      "name": "BlendContainer",
+      "description": "A container that blends multiple children simultaneously based on blend tracks and RTPC parameters. Full WAAPI support in 2024.1.",
+      "properties": ["Volume", "Pitch", "BlendTrackName", "CrossfadeParameter"]
+    },
+    {
+      "name": "GameParameter",
+      "description": "A real-time parameter control (RTPC) value that can be set from the game engine to drive property changes (Volume, Pitch, Filter, etc.).",
+      "properties": ["Min", "Max", "InitialValue", "SimulationValue", "BindToBuiltInParam"]
+    },
+    {
+      "name": "SwitchGroup",
+      "description": "A group of mutually exclusive Switch values. Used to drive Switch Container assignments. Set from game code.",
+      "properties": ["DefaultSwitchOrState"]
+    },
+    {
+      "name": "Switch",
+      "description": "A value within a Switch Group. Represents one branch of a Switch Container.",
+      "properties": []
+    },
+    {
+      "name": "StateGroup",
+      "description": "A group of mutually exclusive State values. Used for global state-based property changes (e.g., underwater, paused).",
+      "properties": ["DefaultSwitchOrState", "DefaultTransitionTime"]
+    },
+    {
+      "name": "State",
+      "description": "A value within a State Group. Can be associated with property overrides across the entire project.",
+      "properties": []
+    },
+    {
+      "name": "Trigger",
+      "description": "A game-side trigger used to drive Stinger playback in Music Switch/Playlist Containers.",
+      "properties": []
+    },
+    {
+      "name": "SoundBank",
+      "description": "A package of audio data and metadata loaded by the game engine at runtime. In 2024.1, Auto-Defined SoundBanks are the default.",
+      "properties": ["IncludeInSoundBank"]
+    },
+    {
+      "name": "AudioFileSource",
+      "description": "A leaf object representing an imported audio file (.wav). Child of a Sound object.",
+      "properties": ["AudioFile", "Language", "TrimBegin", "TrimEnd", "FadeInDuration", "FadeOutDuration"]
+    },
+    {
+      "name": "Effect",
+      "description": "An audio effect plugin instance (RoomVerb, Delay, Compressor, etc.) attached to a Sound or Bus via Effect slots.",
+      "properties": ["classId", "Effect0", "Effect1", "Effect2", "Effect3"]
+    },
+    {
+      "name": "Attenuation",
+      "description": "Defines distance-based volume and filter curves. Referenced by Sound/Container objects for 3D spatialization.",
+      "properties": ["RadiusMax", "VolumeDryAtMaxDistance", "ConeUseAttenuation"]
+    },
+    {
+      "name": "Conversion",
+      "description": "Defines audio conversion settings (sample rate, codec, quality) applied during SoundBank generation.",
+      "properties": ["SampleRate", "Channels", "Format"]
+    },
+    {
+      "name": "WorkUnit",
+      "description": "An organizational unit in Wwise that maps to a .wwu file on disk. Each hierarchy has a Default Work Unit.",
+      "properties": []
+    },
+    {
+      "name": "Folder",
+      "description": "A virtual folder for organizing objects within a Work Unit. Does not affect audio behavior.",
+      "properties": []
+    },
+    {
+      "name": "MusicSwitchContainer",
+      "description": "An interactive music container that switches between Music Segments based on Switch/State values.",
+      "properties": ["Volume", "Pitch", "Tempo", "TimeSignature"]
+    },
+    {
+      "name": "MusicPlaylistContainer",
+      "description": "An interactive music container that plays Music Segments in a defined playlist (sequential, random, or shuffle).",
+      "properties": ["Volume", "Pitch", "Tempo", "TimeSignature"]
+    },
+    {
+      "name": "MusicSegment",
+      "description": "A timed music structure containing Music Tracks. Defines entry/exit cues for transitions.",
+      "properties": ["Volume", "Pitch", "Tempo", "TimeSignature", "Duration", "EntryCue", "ExitCue"]
+    },
+    {
+      "name": "MusicTrack",
+      "description": "A track within a Music Segment containing Music Clips. Supports sub-tracks for random/sequence switching.",
+      "properties": ["Volume", "Pitch", "TrackType"]
+    }
+  ]
+}

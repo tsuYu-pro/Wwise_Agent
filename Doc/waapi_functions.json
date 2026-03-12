@@ -1,0 +1,340 @@
+{
+  "functions": [
+    {
+      "uri": "ak.wwise.core.getInfo",
+      "description": "Get Wwise version and basic project information.",
+      "args": [],
+      "category": "core"
+    },
+    {
+      "uri": "ak.wwise.core.object.get",
+      "description": "Query Wwise objects. Supports 'from' (path, id, search, ofType), 'transform' (select, where) and return options.",
+      "args": ["from", "transform", "options"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.create",
+      "description": "Create a new Wwise object under a specified parent. Returns the created object's id, name, and path.",
+      "args": ["name", "type", "parent", "onNameConflict", "children", "notes"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.delete",
+      "description": "Delete a Wwise object by path or id. Check for dangling references before deletion.",
+      "args": ["object"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.move",
+      "description": "Move a Wwise object to a new parent node. Preserves object properties and children.",
+      "args": ["object", "parent", "onNameConflict"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.setProperty",
+      "description": "Set a single property value on a Wwise object. Common properties: Volume, Pitch, LowPassFilter, HighPassFilter.",
+      "args": ["object", "property", "value", "platform"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.setReference",
+      "description": "Set a reference-type property on a Wwise object (e.g., OutputBus, Target, Attenuation).",
+      "args": ["object", "reference", "value", "platform"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.set",
+      "description": "Batch set object properties, including complex operations like RTPC bindings, Effect slots, and nested object creation.",
+      "args": ["objects", "onNameConflict", "listMode"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.getPropertyAndReferenceNames",
+      "description": "Get all available property and reference names for a given Wwise object.",
+      "args": ["object"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.getAttenuationCurve",
+      "description": "Get the attenuation curve data for a specific object and curve type.",
+      "args": ["object", "curveType", "platform"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.setAttenuationCurve",
+      "description": "Set the attenuation curve for a specific object, defining distance-based volume or filter behavior.",
+      "args": ["object", "curveType", "use", "points", "platform"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.copy",
+      "description": "Copy a Wwise object to a new parent location.",
+      "args": ["object", "parent", "onNameConflict"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.getTypes",
+      "description": "Get the list of all valid Wwise object types.",
+      "args": [],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.getPropertyInfo",
+      "description": "Get property definition details (type, range, default value) for a given property name.",
+      "args": ["property"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.isPropertyEnabled",
+      "description": "Check if a specific property is enabled (overridden from parent) on an object.",
+      "args": ["object", "property", "platform"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.setName",
+      "description": "Rename a Wwise object.",
+      "args": ["object", "value"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.setNotes",
+      "description": "Set the Notes field on a Wwise object.",
+      "args": ["object", "value"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.transport.create",
+      "description": "Create a transport instance for previewing (playing) an Event in the Wwise Authoring Tool.",
+      "args": ["object"],
+      "category": "core.transport"
+    },
+    {
+      "uri": "ak.wwise.core.transport.destroy",
+      "description": "Destroy (release) a previously created transport instance.",
+      "args": ["transport"],
+      "category": "core.transport"
+    },
+    {
+      "uri": "ak.wwise.core.transport.executeAction",
+      "description": "Execute a playback action (play, stop, pause, resume) on a transport instance.",
+      "args": ["transport", "action"],
+      "category": "core.transport"
+    },
+    {
+      "uri": "ak.wwise.core.transport.getList",
+      "description": "Get all active transport instances in the current session.",
+      "args": [],
+      "category": "core.transport"
+    },
+    {
+      "uri": "ak.wwise.core.transport.getState",
+      "description": "Get the current state (playing, stopped, paused) of a transport instance.",
+      "args": ["transport"],
+      "category": "core.transport"
+    },
+    {
+      "uri": "ak.wwise.core.soundbank.getInclusions",
+      "description": "Get the list of objects included in a SoundBank.",
+      "args": ["soundbank"],
+      "category": "core.soundbank"
+    },
+    {
+      "uri": "ak.wwise.core.soundbank.setInclusions",
+      "description": "Set the objects included in a SoundBank.",
+      "args": ["soundbank", "operation", "inclusions"],
+      "category": "core.soundbank"
+    },
+    {
+      "uri": "ak.wwise.core.soundbank.generate",
+      "description": "Generate SoundBanks. In 2024.1 Auto-Defined SoundBank mode, manual generation is typically unnecessary.",
+      "args": ["soundbanks", "platforms", "languages", "writeToDisk"],
+      "category": "core.soundbank"
+    },
+    {
+      "uri": "ak.wwise.core.soundbank.convertExternalSources",
+      "description": "Convert external audio sources for SoundBanks.",
+      "args": ["sources"],
+      "category": "core.soundbank"
+    },
+    {
+      "uri": "ak.wwise.core.audio.import",
+      "description": "Import audio files (.wav, .ogg, etc.) into the Wwise project, creating Sound objects with AudioFileSource children.",
+      "args": ["importOperation", "default", "imports"],
+      "category": "core.audio"
+    },
+    {
+      "uri": "ak.wwise.core.audio.importTabDelimited",
+      "description": "Import audio files using a tab-delimited text file to define the import structure.",
+      "args": ["importFile", "importOperation", "default"],
+      "category": "core.audio"
+    },
+    {
+      "uri": "ak.wwise.core.remote.connect",
+      "description": "Connect to a remote game instance for profiling and real-time editing. BLACKLISTED in execute_waapi.",
+      "args": ["host", "commandPort"],
+      "category": "core.remote"
+    },
+    {
+      "uri": "ak.wwise.core.remote.disconnect",
+      "description": "Disconnect from the remote game instance. BLACKLISTED in execute_waapi.",
+      "args": [],
+      "category": "core.remote"
+    },
+    {
+      "uri": "ak.wwise.core.remote.getAvailableConsoles",
+      "description": "Get the list of available remote game consoles for connection.",
+      "args": [],
+      "category": "core.remote"
+    },
+    {
+      "uri": "ak.wwise.core.remote.getConnectionStatus",
+      "description": "Get the current remote connection status.",
+      "args": [],
+      "category": "core.remote"
+    },
+    {
+      "uri": "ak.wwise.core.undo.beginGroup",
+      "description": "Begin an undo group to batch multiple operations. BLACKLISTED in execute_waapi.",
+      "args": [],
+      "category": "core.undo"
+    },
+    {
+      "uri": "ak.wwise.core.undo.cancelGroup",
+      "description": "Cancel an undo group, reverting all operations in the group.",
+      "args": [],
+      "category": "core.undo"
+    },
+    {
+      "uri": "ak.wwise.core.undo.endGroup",
+      "description": "End an undo group, committing all operations within it as a single undo step.",
+      "args": ["displayName"],
+      "category": "core.undo"
+    },
+    {
+      "uri": "ak.wwise.core.undo.undo",
+      "description": "Undo the last operation or undo group.",
+      "args": [],
+      "category": "core.undo"
+    },
+    {
+      "uri": "ak.wwise.core.undo.redo",
+      "description": "Redo the last undone operation.",
+      "args": [],
+      "category": "core.undo"
+    },
+    {
+      "uri": "ak.wwise.core.profiler.startCapture",
+      "description": "Start capturing profiler data from a connected game instance.",
+      "args": [],
+      "category": "core.profiler"
+    },
+    {
+      "uri": "ak.wwise.core.profiler.stopCapture",
+      "description": "Stop capturing profiler data and return capture details.",
+      "args": [],
+      "category": "core.profiler"
+    },
+    {
+      "uri": "ak.wwise.core.profiler.getVoices",
+      "description": "Get the list of currently playing voices from the profiler.",
+      "args": ["time"],
+      "category": "core.profiler"
+    },
+    {
+      "uri": "ak.wwise.core.profiler.getBusses",
+      "description": "Get bus metering data from the profiler (peak, RMS levels).",
+      "args": ["time"],
+      "category": "core.profiler"
+    },
+    {
+      "uri": "ak.wwise.core.profiler.getCursorTimestamp",
+      "description": "Get the current profiler cursor timestamp.",
+      "args": [],
+      "category": "core.profiler"
+    },
+    {
+      "uri": "ak.wwise.core.project.save",
+      "description": "Save the current Wwise project. BLACKLISTED in execute_waapi (should be done by user in Wwise UI).",
+      "args": [],
+      "category": "core.project"
+    },
+    {
+      "uri": "ak.wwise.core.project.open",
+      "description": "Open a Wwise project file. BLACKLISTED in execute_waapi.",
+      "args": ["path"],
+      "category": "core.project"
+    },
+    {
+      "uri": "ak.wwise.core.project.close",
+      "description": "Close the current Wwise project. BLACKLISTED in execute_waapi.",
+      "args": [],
+      "category": "core.project"
+    },
+    {
+      "uri": "ak.wwise.core.switchContainer.addAssignment",
+      "description": "Assign a child object to a specific Switch/State in a Switch Container.",
+      "args": ["stateOrSwitch", "child"],
+      "category": "core.switchContainer"
+    },
+    {
+      "uri": "ak.wwise.core.switchContainer.removeAssignment",
+      "description": "Remove a Switch/State assignment from a Switch Container child.",
+      "args": ["stateOrSwitch", "child"],
+      "category": "core.switchContainer"
+    },
+    {
+      "uri": "ak.wwise.core.switchContainer.getAssignments",
+      "description": "Get all Switch/State assignments for a Switch Container.",
+      "args": ["id"],
+      "category": "core.switchContainer"
+    },
+    {
+      "uri": "ak.wwise.ui.getSelectedObjects",
+      "description": "Get the currently selected objects in the Wwise Authoring UI.",
+      "args": [],
+      "category": "ui"
+    },
+    {
+      "uri": "ak.wwise.ui.project.open",
+      "description": "Open a project in the Wwise UI. BLACKLISTED in execute_waapi.",
+      "args": ["path"],
+      "category": "ui.project"
+    },
+    {
+      "uri": "ak.wwise.ui.commands.execute",
+      "description": "Execute a Wwise UI command (menu action) by command ID.",
+      "args": ["command", "objects"],
+      "category": "ui.commands"
+    },
+    {
+      "uri": "ak.wwise.ui.commands.getCommands",
+      "description": "Get the list of available Wwise UI commands.",
+      "args": [],
+      "category": "ui.commands"
+    },
+    {
+      "uri": "ak.wwise.ui.bringToForeground",
+      "description": "Bring the Wwise Authoring Tool window to the foreground.",
+      "args": [],
+      "category": "ui"
+    },
+    {
+      "uri": "ak.wwise.core.log.get",
+      "description": "Get log messages from the Wwise log.",
+      "args": [],
+      "category": "core.log"
+    },
+    {
+      "uri": "ak.wwise.core.object.pasteProperties",
+      "description": "Paste properties from one object to another (equivalent to copy-paste in the UI).",
+      "args": ["source", "targets"],
+      "category": "core.object"
+    },
+    {
+      "uri": "ak.wwise.core.object.diff",
+      "description": "Get the differences between two objects.",
+      "args": ["source", "target"],
+      "category": "core.object"
+    }
+  ]
+}
