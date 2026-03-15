@@ -1064,6 +1064,7 @@ class AIClient:
     DUOJIE_API_URL = "https://api.duojie.games/v1/chat/completions"
     DUOJIE_ANTHROPIC_API_URL = "https://api.duojie.games/v1/messages"
     WLAI_API_URL = "https://api3.wlai.vip/v1/chat/completions"
+    CODEBUDDY_CLI_API_URL = "https://api.codebuddy.pro/v1/chat/completions"
     
     _DUOJIE_ANTHROPIC_MODELS = frozenset({'glm-4.7', 'glm-5'})
 
@@ -1083,6 +1084,7 @@ class AIClient:
             'ollama': 'ollama',
             'duojie': self._read_api_key('duojie'),
             'wlai': self._read_api_key('wlai'),
+            'codebuddy_cli': self._read_api_key('codebuddy_cli'),
         }
         self._ssl_context = self._create_ssl_context()
         self._web_searcher = WebSearcher()
@@ -1372,6 +1374,7 @@ class AIClient:
             'glm': ['GLM_API_KEY', 'ZHIPU_API_KEY', 'DCC_AI_GLM_API_KEY'],
             'duojie': ['DUOJIE_API_KEY', 'DCC_AI_DUOJIE_API_KEY'],
             'wlai': ['WLAI_API_KEY', 'DCC_AI_WLAI_API_KEY'],
+            'codebuddy_cli': ['CODEBUDDY_CLI_API_KEY', 'DCC_AI_CODEBUDDY_CLI_API_KEY'],
         }
         for env_var in env_map.get(provider, []):
             key = os.environ.get(env_var)
@@ -1382,7 +1385,7 @@ class AIClient:
             key_map = {
                 'openai': 'openai_api_key', 'deepseek': 'deepseek_api_key',
                 'glm': 'glm_api_key', 'duojie': 'duojie_api_key',
-                'wlai': 'wlai_api_key',
+                'wlai': 'wlai_api_key', 'codebuddy_cli': 'codebuddy_cli_api_key',
             }
             return cfg.get(key_map.get(provider, '')) or None
         return None
@@ -1439,6 +1442,8 @@ class AIClient:
             return self.DUOJIE_API_URL
         elif provider == 'wlai':
             return self.WLAI_API_URL
+        elif provider == 'codebuddy_cli':
+            return self.CODEBUDDY_CLI_API_URL
         return self.OPENAI_API_URL
 
     def _get_vendor_name(self, provider: str) -> str:
@@ -1446,6 +1451,7 @@ class AIClient:
             'openai': 'OpenAI', 'deepseek': 'DeepSeek',
             'glm': 'GLM（智谱AI）', 'ollama': 'Ollama',
             'duojie': '拼好饭', 'wlai': 'WLAI',
+            'codebuddy_cli': 'Codebuddy CLI',
         }
         return names.get(provider, provider)
     
@@ -1499,7 +1505,8 @@ class AIClient:
     def _get_default_model(self, provider: str) -> str:
         defaults = {
             'openai': 'gpt-5.2', 'deepseek': 'deepseek-chat',
-            'glm': 'glm-4.7', 'ollama': 'qwen2.5:14b'
+            'glm': 'glm-4.7', 'ollama': 'qwen2.5:14b',
+            'codebuddy_cli': 'gemini-3.0-pro'
         }
         return defaults.get(provider, 'gpt-5.2')
 

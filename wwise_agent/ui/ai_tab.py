@@ -3181,7 +3181,11 @@ Memory System:
     def _on_set_key(self):
         """弹出 API Key 设置对话框"""
         provider = self._current_provider()
-        names = {'openai': 'OpenAI', 'deepseek': 'DeepSeek', 'glm': 'GLM', 'ollama': 'Ollama'}
+        names = {
+            'openai': 'OpenAI', 'deepseek': 'DeepSeek', 'glm': 'GLM', 
+            'ollama': 'Ollama', 'duojie': '拼好饭', 'wlai': 'WLAI',
+            'codebuddy_cli': 'Codebuddy CLI'
+        }
 
         key, ok = QtWidgets.QInputDialog.getText(
             self, f"Set {names.get(provider, provider)} API Key",
