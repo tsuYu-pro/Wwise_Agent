@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """创建 Wwise Event 及其 Action"""
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from shared.wwise_version import version_manager, get_create_event_note
+
 SKILL_INFO = {
     "name": "create_event",
     "description": "创建 Wwise Event 及其 Action。自动创建 Event + Action 并设置 Target 引用。",
@@ -62,7 +69,7 @@ def run(event_name, action_type, target_path, parent_path="\\Events\\Default Wor
                 "type": action_type,
                 "target": target_path,
             },
-            "note": "Wwise 2024.1 Live Editing 已启用，无需重新生成 SoundBank 即可立即验证",
+            "note": get_create_event_note(version_manager.version),
         })
     except Exception as e:
         return err("unexpected_error", str(e))

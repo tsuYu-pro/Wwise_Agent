@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """获取 SoundBank 信息"""
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from shared.wwise_version import version_manager, get_soundbank_note
+
 SKILL_INFO = {
     "name": "get_soundbank_info",
     "description": "获取 SoundBank 信息。不传参数时返回所有 SoundBank 列表。",
@@ -39,7 +46,7 @@ def run(soundbank_name=None):
             "auto_defined_soundbank_enabled": auto_soundbank,
             "soundbank_count": len(banks),
             "soundbanks": banks,
-            "note": "Wwise 2024.1 默认开启 Auto-Defined SoundBank，无需手动管理 Bank 加载/卸载",
+            "note": get_soundbank_note(version_manager.version),
         })
     except Exception as e:
         return err("unexpected_error", str(e))

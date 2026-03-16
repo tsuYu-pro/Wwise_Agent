@@ -380,7 +380,7 @@ async def execute_waapi(
 
 @mcp.prompt()
 def wwise_system_prompt() -> str:
-    """Wwise 领域 System Prompt — 包含角色定义、对象模型、2024.1 特性、操作规范。"""
+    """Wwise 领域 System Prompt — 包含角色定义、对象模型、版本特性、操作规范。自动适配当前连接的 Wwise 版本。"""
     from .prompts.system_prompt import STATIC_SYSTEM_PROMPT
     return STATIC_SYSTEM_PROMPT
 

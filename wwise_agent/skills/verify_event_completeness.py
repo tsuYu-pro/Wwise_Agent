@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
 """验证 Event 完整性"""
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from shared.wwise_version import version_manager, get_verify_live_editing_note
+
 SKILL_INFO = {
     "name": "verify_event_completeness",
     "description": "验证单个 Event 的完整性：Action 是否存在、Target 引用、音频文件、SoundBank 包含。",
@@ -101,7 +108,7 @@ def run(event_path):
             "event": event_path,
             "all_passed": all_passed,
             "checks": checks,
-            "live_editing_note": "Wwise 2024.1 Live Editing 已启用",
+            "live_editing_note": get_verify_live_editing_note(version_manager.version),
         })
     except Exception as e:
         return err("unexpected_error", str(e))

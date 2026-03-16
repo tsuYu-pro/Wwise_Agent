@@ -7,7 +7,14 @@ WAAPI 连接 & 通用工具 — Skill 内部模块（以 _ 开头，不会被注
 """
 
 import logging
+import sys
+import os
 from typing import Any, Optional, List
+
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from shared.wwise_version import version_manager
 
 logger = logging.getLogger("wwise_agent.skills")
 
@@ -91,6 +98,14 @@ def _get_client():
     try:
         _client = WaapiClient(WAAPI_URL)
         logger.info("WAAPI 连接成功: %s", WAAPI_URL)
+        # 连接成功后自动检测 Wwise 版本
+        if not version_manager.is_detected:
+            try:
+                info = _client.call("ak.wwise.core.getInfo")
+                if info:
+                    version_manager.set_from_info(info)
+            except Exception as e:
+                logger.warning("版本检测失败: %s", e)
         return _client
     except CannotConnectToWaapiException as e:
         raise ConnectionError(

@@ -3,8 +3,14 @@ Layer 4 — 操作类工具（10 个）
 """
 
 import logging
+import sys
+import os
 from typing import Any, Union
 
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager, get_create_event_note
 from ..core.adapter import WwiseAdapter
 from ..core.exceptions import WwiseMCPError
 from ..rag.doc_index import doc_index
@@ -171,7 +177,7 @@ async def create_event(
                 "type": action_type,
                 "target": target_path,
             },
-            "note": "Wwise 2024.1 Live Editing 已启用，无需重新生成 SoundBank 即可立即验证",
+            "note": get_create_event_note(version_manager.version),
         })
     except WwiseMCPError as e:
         return _err(e)

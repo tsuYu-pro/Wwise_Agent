@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
 """获取 Bus 拓扑结构"""
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+from shared.wwise_version import version_manager
+
 SKILL_INFO = {
     "name": "get_bus_topology",
-    "description": "获取 Master-Mixer Hierarchy 中所有 Bus 的拓扑结构。用于了解音频路由。",
+    "description": "获取 Master-Mixer / Busses Hierarchy 中所有 Bus 的拓扑结构。用于了解音频路由。",
     "parameters": {},
 }
 
@@ -12,8 +19,9 @@ def run():
     from ._waapi_helpers import waapi_call, ok, err
 
     try:
+        master_mixer_path = version_manager.resolve_path("master_mixer")
         args = {
-            "from": {"path": ["\\Master-Mixer Hierarchy"]},
+            "from": {"path": [master_mixer_path]},
             "transform": [{"select": ["descendants"]}],
         }
         result = waapi_call(

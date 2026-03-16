@@ -2,6 +2,13 @@
 WwiseMCP 异常分类
 """
 
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager, get_connection_suggestion, get_api_error_suggestion
+
 
 class WwiseMCPError(Exception):
     """所有 WwiseMCP 异常的基类"""
@@ -26,20 +33,22 @@ class WwiseMCPError(Exception):
 class WwiseConnectionError(WwiseMCPError):
     """WAAPI WebSocket 连接失败或断线"""
     def __init__(self, message: str = "无法连接到 Wwise WAAPI"):
+        v = version_manager.version if version_manager.is_detected else None
         super().__init__(
             message=message,
             code="connection_error",
-            suggestion="请确认 Wwise 2024.1 正在运行，且 WAAPI 已在 User Settings 中启用（默认端口 8080）",
+            suggestion=get_connection_suggestion(v),
         )
 
 
 class WwiseAPIError(WwiseMCPError):
     """WAAPI 调用返回错误"""
     def __init__(self, message: str, waapi_code: int | None = None):
+        v = version_manager.version if version_manager.is_detected else None
         super().__init__(
             message=message,
             code="waapi_error",
-            suggestion="检查 WAAPI 调用参数是否符合 Wwise 2024.1 规范",
+            suggestion=get_api_error_suggestion(v),
         )
         self.waapi_code = waapi_code
 

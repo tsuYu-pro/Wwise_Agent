@@ -3,8 +3,14 @@ Layer 2 — WwiseRAG：按需收集 Wwise 项目状态
 """
 
 import logging
+import sys
+import os
 from typing import Optional
 
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager
 from ..core.adapter import WwiseAdapter
 from ..core.exceptions import WwiseMCPError
 
@@ -93,8 +99,9 @@ class WwiseRAG:
 
     async def _collect_actor_mixer(self, adapter: WwiseAdapter) -> str:
         try:
+            am_path = version_manager.resolve_path("actor_mixer")
             objects = await adapter.get_objects(
-                from_spec={"path": ["\\Actor-Mixer Hierarchy"]},
+                from_spec={"path": [am_path]},
                 return_fields=["name", "type", "childrenCount", "path"],
                 transform=[{"select": ["children"]}],
             )
@@ -110,10 +117,11 @@ class WwiseRAG:
 
     async def _collect_bus_topology(self, adapter: WwiseAdapter) -> str:
         try:
+            mm_path = version_manager.resolve_path("master_mixer")
             result = await adapter.call(
                 "ak.wwise.core.object.get",
                 {
-                    "from": {"path": ["\\Master-Mixer Hierarchy"]},
+                    "from": {"path": [mm_path]},
                     "transform": [{"select": ["descendants"]}],
                 },
                 {"return": ["name", "type", "path", "childrenCount"]},

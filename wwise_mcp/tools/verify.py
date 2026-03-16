@@ -3,8 +3,14 @@ Layer 4 — 验证类工具（2 个）
 """
 
 import logging
+import sys
+import os
 from typing import Any
 
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager, get_verify_live_editing_note
 from ..core.adapter import WwiseAdapter
 from ..core.exceptions import WwiseMCPError
 
@@ -253,7 +259,7 @@ async def verify_event_completeness(event_path: str) -> dict:
             "event": event_path,
             "all_passed": all_passed,
             "checks": checks,
-            "live_editing_note": "Wwise 2024.1 Live Editing 已启用",
+            "live_editing_note": get_verify_live_editing_note(version_manager.version),
         })
     except WwiseMCPError as e:
         return _err(e)

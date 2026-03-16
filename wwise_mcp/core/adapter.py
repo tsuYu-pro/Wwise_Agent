@@ -4,8 +4,14 @@ WwiseAdapter：Layer 1 — WAAPI Host Adapter
 """
 
 import logging
+import sys
+import os
 from typing import Any, Optional
 
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager
 from .connection import WwiseConnection
 from .exceptions import WwiseAPIError, WwiseConnectionError
 
@@ -65,8 +71,11 @@ class WwiseAdapter:
     # ------------------------------------------------------------------
 
     async def get_info(self) -> dict:
-        """获取 Wwise 项目基础信息"""
-        return await self.call("ak.wwise.core.getInfo")
+        """获取 Wwise 项目基础信息，首次调用时自动检测并缓存版本。"""
+        info = await self.call("ak.wwise.core.getInfo")
+        if not version_manager.is_detected and info:
+            version_manager.set_from_info(info)
+        return info
 
     async def get_objects(
         self,

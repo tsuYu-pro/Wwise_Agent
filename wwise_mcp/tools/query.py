@@ -3,8 +3,14 @@ Layer 4 — 查询类工具（9 个）
 """
 
 import logging
+import sys
+import os
 from typing import Any, Optional
 
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager, get_soundbank_note
 from ..core.adapter import WwiseAdapter
 from ..core.exceptions import WwiseMCPError
 
@@ -35,18 +41,9 @@ async def get_project_hierarchy() -> dict:
         )
         project_name = root_obj[0].get("name", "Unknown") if root_obj else "Unknown"
 
-        known_roots = [
-            "\\Actor-Mixer Hierarchy",
-            "\\Master-Mixer Hierarchy",
-            "\\Events",
-            "\\SoundBanks",
-            "\\Game Parameters",
-            "\\Switches",
-            "\\States",
-            "\\Interactive Music Hierarchy",
-            "\\Effects",
-            "\\Attenuations",
-        ]
+        info = await adapter.get_info()
+
+        known_roots = version_manager.get_known_roots()
         root_children = await adapter.get_objects(
             from_spec={"path": known_roots},
             return_fields=["name", "type", "childrenCount", "path"],
@@ -61,7 +58,6 @@ async def get_project_hierarchy() -> dict:
                 "path": obj.get("path", ""),
             }
 
-        info = await adapter.get_info()
         return _ok({
             "wwise_version": info.get("version", {}).get("displayName", "Unknown"),
             "project_name": project_name,
@@ -167,11 +163,12 @@ async def search_objects(
 
 
 async def get_bus_topology() -> dict:
-    """获取 Master-Mixer Hierarchy 中所有 Bus 的拓扑结构。"""
+    """获取 Master-Mixer / Busses Hierarchy 中所有 Bus 的拓扑结构。"""
     try:
         adapter = WwiseAdapter()
+        master_mixer_path = version_manager.resolve_path("master_mixer")
         args = {
-            "from": {"path": ["\\Master-Mixer Hierarchy"]},
+            "from": {"path": [master_mixer_path]},
             "transform": [{"select": ["descendants"]}],
         }
         result = await adapter.call(
@@ -257,7 +254,7 @@ async def get_soundbank_info(soundbank_name: str | None = None) -> dict:
             "auto_defined_soundbank_enabled": auto_soundbank,
             "soundbank_count": len(banks),
             "soundbanks": banks,
-            "note": "Wwise 2024.1 默认开启 Auto-Defined SoundBank，无需手动管理 Bank 加载/卸载",
+            "note": get_soundbank_note(version_manager.version),
         })
     except WwiseMCPError as e:
         return _err(e)

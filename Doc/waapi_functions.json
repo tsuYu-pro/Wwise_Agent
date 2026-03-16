@@ -146,7 +146,7 @@
     },
     {
       "uri": "ak.wwise.core.soundbank.generate",
-      "description": "Generate SoundBanks. In 2024.1 Auto-Defined SoundBank mode, manual generation is typically unnecessary.",
+      "description": "Generate SoundBanks. In Auto-Defined SoundBank mode (default since Wwise 2022.1), manual generation is typically unnecessary.",
       "args": ["soundbanks", "platforms", "languages", "writeToDisk"],
       "category": "core.soundbank"
     },

@@ -31,10 +31,11 @@ def _fmt_duration(seconds: float) -> str:
 # 匹配 Wwise 对象路径: \Actor-Mixer Hierarchy\..., \Events\..., etc.
 _WWISE_PATH_RE = re.compile(
     r'(?<!["\w\\])'
-    r'(\\(?:Actor-Mixer Hierarchy|Interactive Music Hierarchy|Events|'
+    r'(\\(?:Actor-Mixer Hierarchy|Property Container|Interactive Music Hierarchy|'
+    r'Containers|Events|'
     r'Switches|States|Game Parameters|Triggers|Effects|Attenuations|'
     r'Presets|Soundcaster Sessions|Mixing Sessions|SoundBanks|'
-    r'Master-Mixer Hierarchy|Virtual Acoustics|Queries)'
+    r'Master-Mixer Hierarchy|Busses|Virtual Acoustics|Queries)'
     r'(?:\\[^\s"\\]+)+)'
     r'(?!["\w\\])'
 )

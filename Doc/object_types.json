@@ -42,7 +42,7 @@
     },
     {
       "name": "BlendContainer",
-      "description": "A container that blends multiple children simultaneously based on blend tracks and RTPC parameters. Full WAAPI support in 2024.1.",
+      "description": "A container that blends multiple children simultaneously based on blend tracks and RTPC parameters. Full WAAPI support in Wwise 2024.1+.",
       "properties": ["Volume", "Pitch", "BlendTrackName", "CrossfadeParameter"]
     },
     {
@@ -77,7 +77,7 @@
     },
     {
       "name": "SoundBank",
-      "description": "A package of audio data and metadata loaded by the game engine at runtime. In 2024.1, Auto-Defined SoundBanks are the default.",
+      "description": "A package of audio data and metadata loaded by the game engine at runtime. Auto-Defined SoundBanks are the default in Wwise 2022.1+.",
       "properties": ["IncludeInSoundBank"]
     },
     {

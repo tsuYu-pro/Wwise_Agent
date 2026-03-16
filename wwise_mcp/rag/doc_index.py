@@ -5,8 +5,14 @@ Layer 2 — WwiseDocIndex：WAAPI Schema + 知识库索引
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Optional
+
+# 确保 shared 可以被导入
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+from shared.wwise_version import version_manager
 
 logger = logging.getLogger("wwise_mcp.doc_index")
 
@@ -85,21 +91,29 @@ class WwiseDocIndex:
         if self._loaded:
             return
 
-        schema_path = _DOC_DIR / "waapi_schema_2024.1.json"
-        if schema_path.exists():
-            try:
-                with open(schema_path, encoding="utf-8") as f:
-                    raw_schema = json.load(f)
-                if isinstance(raw_schema, list):
-                    for item in raw_schema:
-                        uri = item.get("uri") or item.get("id")
-                        if uri:
-                            self._schema[uri] = item
-                elif isinstance(raw_schema, dict):
-                    self._schema = raw_schema
-                logger.info("已加载 WAAPI Schema：%d 个函数", len(self._schema))
-            except Exception as e:
-                logger.warning("加载 WAAPI Schema 失败：%s", e)
+        # 按版本尝试加载 Schema，支持 fallback
+        v = version_manager.version
+        schema_candidates = [
+            _DOC_DIR / f"waapi_schema_{v.major}.{v.minor}.json",
+            _DOC_DIR / f"waapi_schema_{v.major}.json",
+            _DOC_DIR / "waapi_schema.json",
+        ]
+        for schema_path in schema_candidates:
+            if schema_path.exists():
+                try:
+                    with open(schema_path, encoding="utf-8") as f:
+                        raw_schema = json.load(f)
+                    if isinstance(raw_schema, list):
+                        for item in raw_schema:
+                            uri = item.get("uri") or item.get("id")
+                            if uri:
+                                self._schema[uri] = item
+                    elif isinstance(raw_schema, dict):
+                        self._schema = raw_schema
+                    logger.info("已加载 WAAPI Schema（%s）：%d 个函数", schema_path.name, len(self._schema))
+                    break
+                except Exception as e:
+                    logger.warning("加载 WAAPI Schema 失败（%s）：%s", schema_path.name, e)
 
         kb_path = _DOC_DIR / "knowledge_base.txt"
         if kb_path.exists():

@@ -604,11 +604,11 @@ Safe Operation Rules:
 -After creating objects, verify with get_project_hierarchy.
 
 Wwise Concepts:
--Actor-Mixer Hierarchy: Contains sound objects (Sound, Random Container, Blend Container, etc.)
+-Actor-Mixer Hierarchy (or Property Container in 2025+): Contains sound objects (Sound, Random Container, Blend Container, etc.)
 -Events: Actions that trigger sounds (Play, Stop, Pause, etc.)
 -Game Syncs: Switches, States, Game Parameters (RTPC), Triggers
 -SoundBanks: Packaged audio data for runtime
--Busses: Audio mixing topology (Master-Mixer Hierarchy)
+-Busses (Master-Mixer Hierarchy): Audio mixing topology
 -Effects: ShareSets for audio processing (reverb, delay, etc.)
 
 Web Search Strategy:
