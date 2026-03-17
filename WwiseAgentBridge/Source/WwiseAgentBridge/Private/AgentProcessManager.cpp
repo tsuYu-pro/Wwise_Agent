@@ -46,9 +46,16 @@ void FAgentProcessManager::Initialize(bool bAutoLaunch)
 	}
 
 	// Register heartbeat ticker
-#if UE_VERSION_AT_LEAST(5, 0)
+#if UE_VERSION_AT_LEAST(5, 4)
+	// UE 5.4+: AddTicker requires a debug name as the first parameter
 	HeartbeatHandle = FTSTicker::GetCoreTicker().AddTicker(
-		FTSTicker::FDelegateHandle(),
+		TEXT("WwiseAgentBridge_Heartbeat"),
+		HeartbeatInterval,
+		[this](float DeltaTime) -> bool { return Heartbeat(DeltaTime); }
+	);
+#elif UE_VERSION_AT_LEAST(5, 0)
+	// UE 5.0~5.3: AddTicker(Delay, Lambda)
+	HeartbeatHandle = FTSTicker::GetCoreTicker().AddTicker(
 		HeartbeatInterval,
 		[this](float DeltaTime) -> bool { return Heartbeat(DeltaTime); }
 	);
@@ -257,7 +264,11 @@ void FAgentProcessManager::SendHealthCheck()
 	Request->SetURL(FString::Printf(TEXT("http://127.0.0.1:%d/api/health"), Port));
 	Request->SetVerb(TEXT("GET"));
 	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-	Request->OnProcessRequestComplete().BindRaw(this, &FAgentProcessManager::OnHealthCheckResponse);
+	Request->OnProcessRequestComplete().BindLambda(
+		[this](FHttpRequestPtr Req, FHttpResponsePtr Resp, bool bSuccess)
+		{
+			OnHealthCheckResponse(Req, Resp, bSuccess);
+		});
 	Request->ProcessRequest();
 }
 

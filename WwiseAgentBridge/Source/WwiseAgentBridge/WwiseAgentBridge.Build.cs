@@ -39,6 +39,14 @@ public class WwiseAgentBridge : ModuleRules
 			PrivateDependencyModuleNames.Add("EditorFramework");
 		}
 
+		// UE5.4+ split these into standalone modules
+		if (Target.Version.MajorVersion > 5 ||
+		    (Target.Version.MajorVersion == 5 && Target.Version.MinorVersion >= 4))
+		{
+			PrivateDependencyModuleNames.Add("WorkspaceMenuStructure");
+			PrivateDependencyModuleNames.Add("DeveloperSettings");
+		}
+
 		// Wwise Integration (optional — only if present in project)
 		// Uncomment the following lines if your project uses the Wwise UE Integration plugin:
 		// PublicDependencyModuleNames.Add("AkAudio");

@@ -225,7 +225,17 @@ bool FAgentWebSocket::ParseMessage(const FString& RawMessage, FString& OutType, 
 	}
 
 	OutType = JsonObj->GetStringField(TEXT("type"));
+
+	// UE 5.4+ changed TryGetObjectField signature to use const pointer ref
+#if UE_VERSION_AT_LEAST(5, 4)
+	const TSharedPtr<FJsonObject>* PayloadPtr = nullptr;
+	if (JsonObj->TryGetObjectField(TEXT("payload"), PayloadPtr) && PayloadPtr)
+	{
+		OutPayload = *PayloadPtr;
+	}
+#else
 	JsonObj->TryGetObjectField(TEXT("payload"), OutPayload);
+#endif
 
 	return true;
 }
@@ -244,9 +254,16 @@ void FAgentWebSocket::ScheduleReconnect()
 	UE_LOG(LogWwiseAgentBridge, Log, TEXT("Scheduling WebSocket reconnect in %.1f sec (attempt %d/%d)"),
 		Delay, ReconnectAttempts, MaxReconnectAttempts);
 
-#if UE_VERSION_AT_LEAST(5, 0)
+#if UE_VERSION_AT_LEAST(5, 4)
+	// UE 5.4+: AddTicker requires a debug name as the first parameter
 	ReconnectHandle = FTSTicker::GetCoreTicker().AddTicker(
-		FTSTicker::FDelegateHandle(),
+		TEXT("WwiseAgentBridge_Reconnect"),
+		Delay,
+		[this](float) -> bool { return ReconnectTick(0.0f); }
+	);
+#elif UE_VERSION_AT_LEAST(5, 0)
+	// UE 5.0~5.3: AddTicker(Delay, Lambda)
+	ReconnectHandle = FTSTicker::GetCoreTicker().AddTicker(
 		Delay,
 		[this](float) -> bool { return ReconnectTick(0.0f); }
 	);

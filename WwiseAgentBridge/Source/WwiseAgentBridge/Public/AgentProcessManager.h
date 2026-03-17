@@ -8,6 +8,8 @@
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "Containers/Ticker.h"
+#include "Interfaces/IHttpRequest.h"
+#include "Interfaces/IHttpResponse.h"
 #include "WwiseAgentBridgeCompat.h"
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnAgentProcessStateChanged, bool /* bIsRunning */);
