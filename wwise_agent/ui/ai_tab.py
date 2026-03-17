@@ -3877,7 +3877,7 @@ Memory System:
                 text = content if isinstance(content, str) else str(content)
                 resp = self._add_ai_response()
                 if resp:
-                    resp.append_markdown(text)
+                    resp.append_content(text)
                     resp.finalize()
 
     def _periodic_save_all(self):

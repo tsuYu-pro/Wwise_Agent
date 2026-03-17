@@ -115,7 +115,7 @@ class WwiseDocIndex:
                 except Exception as e:
                     logger.warning("加载 WAAPI Schema 失败（%s）：%s", schema_path.name, e)
 
-        kb_path = _DOC_DIR / "knowledge_base.txt"
+        kb_path = _DOC_DIR / "wwise_knowledge_base.txt"
         if kb_path.exists():
             try:
                 with open(kb_path, encoding="utf-8") as f:
