@@ -33,7 +33,7 @@ class HeaderMixin:
         self.provider_combo.addItem("DeepSeek", 'deepseek')
         self.provider_combo.addItem("GLM", 'glm')
         self.provider_combo.addItem("OpenAI", 'openai')
-        self.provider_combo.addItem("Codebuddy CLI", 'codebuddy_cli')
+        self.provider_combo.addItem("CodeBuddy", 'codebuddy_cli')
         self.provider_combo.addItem("Duojie", 'duojie')
         self.provider_combo.addItem("WLAI", 'wlai')
         self.provider_combo.setMinimumWidth(70)
@@ -48,7 +48,7 @@ class HeaderMixin:
             'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
             'glm': ['glm-4.7'],
             'openai': ['gpt-5.2', 'gpt-5.3-codex'],
-            'codebuddy_cli': ['gemini-3.0-pro', 'claude-3-5-sonnet', 'gpt-4o'],
+            'codebuddy_cli': ['deepseek-v3.1', 'gemini-3.0-pro', 'claude-4-5-sonnet', 'gpt-4o'],
             'duojie': [
                 'claude-sonnet-4-5',
                 'claude-opus-4-5-kiro',
@@ -85,7 +85,8 @@ class HeaderMixin:
             'glm-4.7': 200000,
             'gpt-5.2': 128000,
             'gpt-5.3-codex': 200000,
-            # Codebuddy CLI
+            # CodeBuddy (通过 CODEBUDDY_API_KEY 平台认证)
+            'deepseek-v3.1': 128000,
             'gemini-3.0-pro': 200000,
             'claude-3-5-sonnet': 200000,
             'gpt-4o': 128000,
@@ -124,7 +125,8 @@ class HeaderMixin:
             'glm-4.7':                    {'supports_prompt_caching': True, 'supports_vision': False},
             'gpt-5.2':                    {'supports_prompt_caching': True, 'supports_vision': True},
             'gpt-5.3-codex':              {'supports_prompt_caching': True, 'supports_vision': True},
-            # Codebuddy CLI
+            # CodeBuddy (CODEBUDDY_API_KEY 平台认证)
+            'deepseek-v3.1':              {'supports_prompt_caching': True, 'supports_vision': False},
             'gemini-3.0-pro':             {'supports_prompt_caching': True, 'supports_vision': True},
             'claude-3-5-sonnet':          {'supports_prompt_caching': True, 'supports_vision': True},
             'gpt-4o':                     {'supports_prompt_caching': True, 'supports_vision': True},

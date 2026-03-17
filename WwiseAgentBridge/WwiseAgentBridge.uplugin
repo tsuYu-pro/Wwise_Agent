@@ -1,0 +1,25 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0.0",
+	"FriendlyName": "Wwise Agent Bridge",
+	"Description": "Bridges Wwise AI Agent with Unreal Engine — provides sidecar process management, WebSocket communication, asset synchronization, and embedded editor UI.",
+	"Category": "Audio",
+	"CreatedBy": "Wwise AI Agent Team",
+	"CreatedByURL": "https://github.com/tsuyu/Wwise_Agent",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"EnabledByDefault": true,
+	"Modules": [
+		{
+			"Name": "WwiseAgentBridge",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		}
+	]
+}

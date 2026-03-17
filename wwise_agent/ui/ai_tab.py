@@ -3184,12 +3184,24 @@ Memory System:
         names = {
             'openai': 'OpenAI', 'deepseek': 'DeepSeek', 'glm': 'GLM', 
             'ollama': 'Ollama', 'duojie': '拼好饭', 'wlai': 'WLAI',
-            'codebuddy_cli': 'Codebuddy CLI'
+            'codebuddy_cli': 'CodeBuddy'
         }
+
+        if provider == 'codebuddy_cli':
+            # CodeBuddy CLI (Claude Code Internal) 的 Key 是平台认证凭据
+            prompt_text = (
+                "Enter CODEBUDDY_API_KEY:\n"
+                "(CodeBuddy 平台认证 Key，通过 Claude Code Internal CLI 调用)\n\n"
+                "获取地址: https://www.codebuddy.ai/profile/keys\n\n"
+                "使用前需安装 Claude Code Internal:\n"
+                "  npm install -g --registry=https://mirrors.tencent.com/npm @tencent/claude-code-internal"
+            )
+        else:
+            prompt_text = "Enter API Key:"
 
         key, ok = QtWidgets.QInputDialog.getText(
             self, f"Set {names.get(provider, provider)} API Key",
-            "Enter API Key:",
+            prompt_text,
             QtWidgets.QLineEdit.Password
         )
 

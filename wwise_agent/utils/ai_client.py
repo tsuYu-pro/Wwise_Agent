@@ -1064,7 +1064,9 @@ class AIClient:
     DUOJIE_API_URL = "https://api.duojie.games/v1/chat/completions"
     DUOJIE_ANTHROPIC_API_URL = "https://api.duojie.games/v1/messages"
     WLAI_API_URL = "https://api3.wlai.vip/v1/chat/completions"
-    CODEBUDDY_CLI_API_URL = "https://api.codebuddy.pro/v1/chat/completions"
+    # CodeBuddy CLI 不使用 OpenAI 兼容 URL，而是通过 codebuddy-agent-sdk 调用
+    # CODEBUDDY_API_KEY 是 CodeBuddy 平台的认证凭据，非 chat/completions 直连 key
+    CODEBUDDY_CLI_API_URL = ""  # 不再直接 HTTP 请求，由 SDK 内部处理
     
     _DUOJIE_ANTHROPIC_MODELS = frozenset({'glm-4.7', 'glm-5'})
 
@@ -1374,7 +1376,7 @@ class AIClient:
             'glm': ['GLM_API_KEY', 'ZHIPU_API_KEY', 'DCC_AI_GLM_API_KEY'],
             'duojie': ['DUOJIE_API_KEY', 'DCC_AI_DUOJIE_API_KEY'],
             'wlai': ['WLAI_API_KEY', 'DCC_AI_WLAI_API_KEY'],
-            'codebuddy_cli': ['CODEBUDDY_CLI_API_KEY', 'DCC_AI_CODEBUDDY_CLI_API_KEY'],
+            'codebuddy_cli': ['CODEBUDDY_API_KEY', 'CODEBUDDY_CLI_API_KEY', 'DCC_AI_CODEBUDDY_CLI_API_KEY'],
         }
         for env_var in env_map.get(provider, []):
             key = os.environ.get(env_var)
@@ -1487,6 +1489,15 @@ class AIClient:
                     return {'ok': False, 'error': f'Ollama 服务响应异常: {response.status_code}'}
             except Exception as e:
                 return {'ok': False, 'error': f'无法连接 Ollama 服务: {str(e)}'}
+        # CodeBuddy CLI — 检查 API Key + codebuddy-code CLI 可用性
+        if provider == 'codebuddy_cli':
+            api_key = self._get_api_key(provider)
+            if not api_key:
+                return {'ok': False, 'error': '缺少 CODEBUDDY_API_KEY。\n获取地址: https://www.codebuddy.ai/profile/keys\n\n设置方式:\n  export CODEBUDDY_API_KEY=your-api-key\n  或写入 ~/.codebuddy-code/settings.json'}
+            cli_path = self._find_codebuddy_code_cli()
+            if cli_path:
+                return {'ok': True, 'url': f'codebuddy-code: {cli_path}', 'status': 200}
+            return {'ok': False, 'error': '已设置 CODEBUDDY_API_KEY，但未找到 codebuddy-code 命令。\n安装: npm install -g @anthropic-ai/codebuddy-code\n或设置 CODEBUDDY_CODE_PATH 环境变量指向 codebuddy-code 可执行文件。'}
         api_key = self._get_api_key(provider)
         if not api_key:
             return {'ok': False, 'error': f'缺少 API Key'}
@@ -1506,7 +1517,7 @@ class AIClient:
         defaults = {
             'openai': 'gpt-5.2', 'deepseek': 'deepseek-chat',
             'glm': 'glm-4.7', 'ollama': 'qwen2.5:14b',
-            'codebuddy_cli': 'gemini-3.0-pro'
+            'codebuddy_cli': 'deepseek-v3.1'
         }
         return defaults.get(provider, 'gpt-5.2')
 
@@ -1588,6 +1599,195 @@ class AIClient:
             'cache_miss_tokens': cache_miss,
             'cache_hit_rate': (cache_hit / prompt_tokens) if prompt_tokens > 0 else 0,
         }
+
+    # ============================================================
+    # CodeBuddy CLI 调用层 (codebuddy-code)
+    # ============================================================
+    #
+    # CodeBuddy CLI Key (CODEBUDDY_API_KEY) 是 CodeBuddy 平台认证凭据，
+    # 不是 OpenAI 兼容的 chat/completions API Key。
+    #
+    # 正确调用方式：
+    #   codebuddy-code -p --output-format stream-json --verbose "prompt"
+    #
+    # 配置方式（二选一）：
+    #   1. 环境变量:  export CODEBUDDY_API_KEY=xxxxx
+    #   2. 配置文件:  ~/.codebuddy-code/settings.json → {"env":{"CODEBUDDY_API_KEY":"xxx"}}
+    #
+    # API Key 获取: https://www.codebuddy.ai/profile/keys
+    # ============================================================
+
+    @staticmethod
+    def _find_codebuddy_code_cli() -> Optional[str]:
+        """查找 codebuddy-code CLI 可执行文件路径"""
+        import shutil
+        # 优先使用用户指定路径
+        explicit = os.environ.get('CODEBUDDY_CODE_PATH')
+        if explicit and os.path.isfile(explicit):
+            return explicit
+        # 按优先级查找
+        for name in ('codebuddy-code', 'codebuddy'):
+            found = shutil.which(name)
+            if found:
+                return found
+        return None
+
+    def _chat_stream_codebuddy_cli(self,
+                                    messages: List[Dict[str, Any]],
+                                    model: str = 'deepseek-v3.1',
+                                    temperature: float = 0.17,
+                                    max_tokens: Optional[int] = None,
+                                    tools: Optional[List[dict]] = None,
+                                    tool_choice: str = 'auto',
+                                    api_key: str = '') -> Generator[Dict[str, Any], None, None]:
+        """通过 codebuddy-code CLI 进行流式调用。
+
+        调用命令:
+            codebuddy-code -p --output-format stream-json --verbose "prompt"
+
+        环境变量 CODEBUDDY_API_KEY 用于认证。
+        输出格式为 stream-json：每行一个 JSON 对象，逐步输出结果。
+        """
+        import subprocess
+        import json as _json
+
+        cli_path = self._find_codebuddy_code_cli()
+        if not cli_path:
+            yield {
+                "type": "error",
+                "error": (
+                    "未找到 codebuddy-code 命令行工具。\n"
+                    "请先安装 CodeBuddy CLI:\n"
+                    "  npm install -g @tencent-ai/codebuddy-code\n"
+                    "  或参考: https://iwiki.woa.com/p/4016289702\n\n"
+                    "然后设置环境变量 CODEBUDDY_API_KEY:\n"
+                    "  export CODEBUDDY_API_KEY=your-api-key\n"
+                    "  API Key 获取: https://www.codebuddy.ai/profile/keys"
+                ),
+            }
+            return
+
+        # 拼装 prompt：system 指令 + 对话历史 + 最后的 user 消息
+        prompt_parts = []
+        for msg in messages:
+            role = msg.get('role', '')
+            content = msg.get('content', '')
+            if isinstance(content, list):
+                content = ' '.join(
+                    p.get('text', '') for p in content if p.get('type') == 'text'
+                )
+            if role == 'system':
+                prompt_parts.insert(0, f"[System Instructions]\n{content}")
+            elif role == 'user':
+                prompt_parts.append(f"[User]\n{content}")
+            elif role == 'assistant':
+                prompt_parts.append(f"[Assistant]\n{content}")
+
+        prompt_text = '\n\n'.join(prompt_parts)
+
+        if not prompt_text.strip():
+            yield {"type": "error", "error": "无有效消息内容"}
+            return
+
+        # 构造环境变量
+        env = os.environ.copy()
+        if api_key:
+            env['CODEBUDDY_API_KEY'] = api_key
+
+        # 构造命令行参数
+        cmd = [
+            cli_path,
+            '-p',                           # print mode（非交互）
+            '--output-format', 'stream-json',  # 流式 JSON 输出
+            '--verbose',                     # 详细输出
+            prompt_text,                     # prompt 作为最后一个参数
+        ]
+
+        print(f"[AI Client] CodeBuddy CLI: {cli_path}, prompt_len={len(prompt_text)}")
+
+        try:
+            # 使用 Popen 实现流式读取
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                bufsize=1,  # 行缓冲
+            )
+
+            accumulated_text = ""
+            try:
+                for line in proc.stdout:
+                    if self._stop_event.is_set():
+                        proc.terminate()
+                        yield {"type": "stopped", "message": "用户停止了请求"}
+                        return
+
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # 尝试解析 stream-json 格式
+                    try:
+                        obj = _json.loads(line)
+                        # stream-json 格式: {"type":"assistant","message":{"content":"..."}} 等
+                        msg_type = obj.get('type', '')
+
+                        if msg_type == 'assistant':
+                            # 助手消息内容
+                            message = obj.get('message', {})
+                            content = message.get('content', '')
+                            if content:
+                                accumulated_text += content
+                                yield {"type": "content", "content": content}
+
+                        elif msg_type == 'result':
+                            # 最终结果
+                            result_text = obj.get('result', '')
+                            if result_text and not accumulated_text:
+                                yield {"type": "content", "content": result_text}
+                            # result 之后一般就结束了
+
+                        elif msg_type == 'error':
+                            err = obj.get('error', {})
+                            err_msg = err.get('message', '') if isinstance(err, dict) else str(err)
+                            yield {"type": "error", "error": f"CodeBuddy CLI: {err_msg}"}
+                            return
+
+                        # 其他类型（system, status 等）忽略
+
+                    except _json.JSONDecodeError:
+                        # 非 JSON 行 → 当作纯文本输出
+                        if line and not line.startswith(('[', '{')):
+                            accumulated_text += line + '\n'
+                            yield {"type": "content", "content": line + '\n'}
+
+                proc.wait(timeout=300)
+
+                if proc.returncode != 0 and not accumulated_text:
+                    stderr_output = proc.stderr.read() if proc.stderr else ''
+                    yield {
+                        "type": "error",
+                        "error": f"CodeBuddy CLI 退出码 {proc.returncode}: {stderr_output.strip()}"
+                    }
+                    return
+
+            finally:
+                if proc.poll() is None:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+
+            yield {"type": "done", "finish_reason": "stop"}
+
+        except FileNotFoundError:
+            yield {"type": "error", "error": f"CodeBuddy CLI 不存在: {cli_path}"}
+        except Exception as e:
+            print(f"[AI Client] CodeBuddy CLI error: {e}")
+            yield {"type": "error", "error": f"CodeBuddy CLI 错误: {str(e)}"}
 
     # ============================================================
     # Anthropic Messages 协议适配层
@@ -2085,6 +2285,16 @@ class AIClient:
         
         if provider != 'ollama' and not api_key:
             yield {"type": "error", "error": f"缺少 {self._get_vendor_name(provider)} API Key"}
+            return
+        
+        # CodeBuddy CLI 分支 — 通过 claude-internal -p --output-format stream-json 调用
+        if provider == 'codebuddy_cli':
+            yield from self._chat_stream_codebuddy_cli(
+                messages=messages, model=model,
+                temperature=temperature, max_tokens=max_tokens,
+                tools=tools, tool_choice=tool_choice,
+                api_key=api_key,
+            )
             return
         
         # Anthropic 协议分支
