@@ -10,8 +10,18 @@ Wwise Agent — 启动器
 """
 
 import sys
+import os
+import io
 import argparse
 from pathlib import Path
+
+# ── Windows 下强制 stdout/stderr 使用 UTF-8，避免 GBK 编码崩溃 ──
+if sys.platform == 'win32':
+    os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+    if hasattr(sys.stdout, 'buffer'):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    if hasattr(sys.stderr, 'buffer'):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
 
 # 确保项目根目录在 sys.path（支持直接 python launcher.py 启动）
 _root = Path(__file__).parent

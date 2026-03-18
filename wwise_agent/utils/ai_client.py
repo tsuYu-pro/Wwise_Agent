@@ -1494,10 +1494,10 @@ class AIClient:
             api_key = self._get_api_key(provider)
             if not api_key:
                 return {'ok': False, 'error': '缺少 CODEBUDDY_API_KEY。\n获取地址: https://www.codebuddy.ai/profile/keys\n\n设置方式:\n  export CODEBUDDY_API_KEY=your-api-key\n  或写入 ~/.codebuddy-code/settings.json'}
-            cli_path = self._find_codebuddy_code_cli()
-            if cli_path:
-                return {'ok': True, 'url': f'codebuddy-code: {cli_path}', 'status': 200}
-            return {'ok': False, 'error': '已设置 CODEBUDDY_API_KEY，但未找到 codebuddy-code 命令。\n安装: npm install -g @anthropic-ai/codebuddy-code\n或设置 CODEBUDDY_CODE_PATH 环境变量指向 codebuddy-code 可执行文件。'}
+            cli_cmd = self._find_codebuddy_code_cli()
+            if cli_cmd:
+                return {'ok': True, 'url': f'codebuddy-code: {" ".join(cli_cmd)}', 'status': 200}
+            return {'ok': False, 'error': '已设置 CODEBUDDY_API_KEY，但未找到 codebuddy-code / claude-internal 命令。\n安装: npm install -g --registry=https://mirrors.tencent.com/npm @tencent/claude-code-internal\n或设置 CODEBUDDY_CODE_PATH 环境变量指向可执行文件路径。'}
         api_key = self._get_api_key(provider)
         if not api_key:
             return {'ok': False, 'error': f'缺少 API Key'}
@@ -1618,23 +1618,67 @@ class AIClient:
     # ============================================================
 
     @staticmethod
-    def _find_codebuddy_code_cli() -> Optional[str]:
-        """查找 codebuddy-code CLI 可执行文件路径"""
+    def _find_codebuddy_code_cli() -> Optional[list]:
+        """查找 codebuddy-code / claude-internal CLI 并返回可执行命令列表。
+
+        在 Windows 上，npm 全局安装的 CLI 是 .cmd wrapper 脚本，
+        通过 cmd.exe 调用时受 8191 字符的命令行长度限制。
+        为了支持长 prompt，本方法会解析 .cmd 文件找到真正的 node + .js 入口，
+        返回 ['node', 'path/to/cli.js'] 格式，绕过 cmd.exe 限制。
+
+        Returns:
+            list: 可直接传给 subprocess.Popen 的命令前缀列表，如
+                  ['node', 'C:/.../claude-code-internal.js'] 或
+                  ['/usr/local/bin/claude-internal']
+            None: 未找到 CLI
+        """
         import shutil
+
         # 优先使用用户指定路径
         explicit = os.environ.get('CODEBUDDY_CODE_PATH')
         if explicit and os.path.isfile(explicit):
-            return explicit
-        # 按优先级查找
-        for name in ('codebuddy-code', 'codebuddy'):
+            return [explicit]
+
+        def _resolve_cmd_to_node(cmd_path: str) -> Optional[list]:
+            """解析 Windows .cmd wrapper，提取 node + .js 入口文件路径"""
+            if not cmd_path.lower().endswith('.cmd'):
+                return None
+            try:
+                with open(cmd_path, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+                # npm .cmd wrapper 典型格式:
+                #   "%_prog%"  "%dp0%\node_modules\...\cli.js" %*
+                # 其中 %dp0% 是 .cmd 所在目录
+                import re
+                # 匹配最后一行的 JS 文件路径（%dp0%\...\xxx.js）
+                m = re.search(r'["\']?%dp0%\\([^"\'%]+\.js)["\']?', content)
+                if m:
+                    js_rel = m.group(1)
+                    cmd_dir = os.path.dirname(cmd_path)
+                    js_abs = os.path.normpath(os.path.join(cmd_dir, js_rel))
+                    if os.path.isfile(js_abs):
+                        node = shutil.which('node')
+                        if node:
+                            return [node, js_abs]
+            except Exception:
+                pass
+            return None
+
+        # 按优先级查找（claude-internal 是腾讯内部封装版本，优先查找）
+        for name in ('claude-internal', 'codebuddy-code', 'codebuddy'):
             found = shutil.which(name)
             if found:
-                return found
+                # Windows: 尝试解析 .cmd → node + .js
+                resolved = _resolve_cmd_to_node(found)
+                if resolved:
+                    return resolved
+                # 非 Windows 或无法解析：直接用可执行文件
+                return [found]
         return None
 
     def _chat_stream_codebuddy_cli(self,
                                     messages: List[Dict[str, Any]],
-                                    model: str = 'deepseek-v3.1',
+                                    model: str = 'claude-sonnet-4.6 (Default)',
                                     temperature: float = 0.17,
                                     max_tokens: Optional[int] = None,
                                     tools: Optional[List[dict]] = None,
@@ -1651,14 +1695,14 @@ class AIClient:
         import subprocess
         import json as _json
 
-        cli_path = self._find_codebuddy_code_cli()
-        if not cli_path:
+        cli_cmd = self._find_codebuddy_code_cli()
+        if not cli_cmd:
             yield {
                 "type": "error",
                 "error": (
-                    "未找到 codebuddy-code 命令行工具。\n"
+                    "未找到 codebuddy-code / claude-internal 命令行工具。\n"
                     "请先安装 CodeBuddy CLI:\n"
-                    "  npm install -g @tencent-ai/codebuddy-code\n"
+                    "  npm install -g --registry=https://mirrors.tencent.com/npm @tencent/claude-code-internal\n"
                     "  或参考: https://iwiki.woa.com/p/4016289702\n\n"
                     "然后设置环境变量 CODEBUDDY_API_KEY:\n"
                     "  export CODEBUDDY_API_KEY=your-api-key\n"
@@ -1666,8 +1710,10 @@ class AIClient:
                 ),
             }
             return
+        cli_display = ' '.join(cli_cmd)  # 用于日志显示
 
-        # 拼装 prompt：system 指令 + 对话历史 + 最后的 user 消息
+        # 拆分消息：system prompt 通过 --system-prompt 传递，其余拼入 prompt
+        system_prompt = ''
         prompt_parts = []
         for msg in messages:
             role = msg.get('role', '')
@@ -1677,13 +1723,28 @@ class AIClient:
                     p.get('text', '') for p in content if p.get('type') == 'text'
                 )
             if role == 'system':
-                prompt_parts.insert(0, f"[System Instructions]\n{content}")
+                # 多个 system 消息合并
+                system_prompt = (system_prompt + '\n\n' + content).strip() if system_prompt else content
             elif role == 'user':
-                prompt_parts.append(f"[User]\n{content}")
+                prompt_parts.append(content)
             elif role == 'assistant':
                 prompt_parts.append(f"[Assistant]\n{content}")
 
-        prompt_text = '\n\n'.join(prompt_parts)
+        # 只取最后一条 user 消息作为 prompt（前面的对话历史通过 --system-prompt 的附加段落传递）
+        # 如果有多轮对话，把历史也放入 system prompt 以保持上下文
+        if len(prompt_parts) > 1:
+            # 将历史对话（除最后一条 user 消息外）附加到 system prompt
+            history_parts = prompt_parts[:-1]
+            history_text = '\n\n'.join(history_parts)
+            if system_prompt:
+                system_prompt += '\n\n--- 对话历史 ---\n' + history_text
+            else:
+                system_prompt = '--- 对话历史 ---\n' + history_text
+            prompt_text = prompt_parts[-1]
+        elif prompt_parts:
+            prompt_text = prompt_parts[0]
+        else:
+            prompt_text = ''
 
         if not prompt_text.strip():
             yield {"type": "error", "error": "无有效消息内容"}
@@ -1694,31 +1755,85 @@ class AIClient:
         if api_key:
             env['CODEBUDDY_API_KEY'] = api_key
 
-        # 构造命令行参数
-        cmd = [
-            cli_path,
+        # 模型映射: UI 模型名 → claude-internal --model 参数
+        # claude-internal 实际支持 3 种模型档位:
+        #   Default = Claude Sonnet 4.6
+        #   Opus    = Claude Opus 4.6
+        #   Haiku   = GLM-4.7 / DeepSeek-v3.1
+        model_flag = None
+        model_lower = (model or '').lower()
+        if 'opus' in model_lower:
+            model_flag = 'opus'
+        elif 'haiku' in model_lower or 'glm' in model_lower or 'deepseek' in model_lower:
+            model_flag = 'haiku'
+        # else: 使用 Default (Sonnet 4.6)，不传 --model
+
+        # 构造命令行基础参数（cli_cmd 已经是 list，如 ['node', 'path/to/cli.js']）
+        cmd = list(cli_cmd) + [
             '-p',                           # print mode（非交互）
             '--output-format', 'stream-json',  # 流式 JSON 输出
             '--verbose',                     # 详细输出
-            prompt_text,                     # prompt 作为最后一个参数
         ]
+        # 模型档位参数
+        if model_flag:
+            cmd.extend(['--model', model_flag])
+        # --system-prompt: 让 CLI 原生传递 system prompt 给模型
+        if system_prompt:
+            cmd.extend(['--system-prompt', system_prompt])
 
-        print(f"[AI Client] CodeBuddy CLI: {cli_path}, prompt_len={len(prompt_text)}")
+        # Windows CreateProcess 限制 ~32767 字符，cmd.exe 限制 8191 字符。
+        # 通过直接调用 node + .js 已绕过 cmd.exe 限制。
+        # 但 CreateProcess 总限制仍在，超长时把 prompt 并入 --system-prompt。
+        WIN_CMD_LIMIT = 30000  # 留余量
+        total_cmd_len = sum(len(a) for a in cmd) + len(prompt_text) + len(cmd) + 1
+        if total_cmd_len > WIN_CMD_LIMIT:
+            print(f"[AI Client] prompt 过长 ({total_cmd_len} chars)，并入 system-prompt 传递")
+            merged_sys = (system_prompt + '\n\n' if system_prompt else '')
+            merged_sys += f"--- 用户最新消息（请直接回复此消息） ---\n{prompt_text}"
+            prompt_text = "请根据上述 system prompt 中的用户最新消息进行回复。"
+            cmd = list(cli_cmd) + [
+                '-p',
+                '--output-format', 'stream-json',
+                '--verbose',
+            ]
+            if model_flag:
+                cmd.extend(['--model', model_flag])
+            cmd.extend(['--system-prompt', merged_sys])
+
+        # prompt 作为最后一个位置参数
+        cmd.append(prompt_text)
+
+        print(f"[AI Client] CodeBuddy CLI: {cli_display}, model={model}→{model_flag or 'default'}, prompt_len={len(prompt_text)}, sys_prompt_len={len(system_prompt)}")
 
         try:
+            import threading as _threading
+
             # 使用 Popen 实现流式读取
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding='utf-8',   # Windows 默认 GBK，显式指定 UTF-8
+                errors='replace',   # 遇到无法解码的字符时替换而非崩溃
                 env=env,
                 bufsize=1,  # 行缓冲
             )
 
+            # 后台线程持续消费 stderr，防止管道满阻塞 CLI 进程
+            stderr_lines: list = []
+            def _drain_stderr():
+                try:
+                    for err_line in (proc.stderr or []):
+                        stderr_lines.append(err_line)
+                except Exception:
+                    pass
+            stderr_thread = _threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
+
             accumulated_text = ""
             try:
-                for line in proc.stdout:
+                for line in (proc.stdout or []):
                     if self._stop_event.is_set():
                         proc.terminate()
                         yield {"type": "stopped", "message": "用户停止了请求"}
@@ -1737,14 +1852,29 @@ class AIClient:
                         if msg_type == 'assistant':
                             # 助手消息内容
                             message = obj.get('message', {})
-                            content = message.get('content', '')
+                            raw_content = message.get('content', '')
+                            # claude-internal 返回 Anthropic 格式: content 可能是 list[{type,text}]
+                            if isinstance(raw_content, list):
+                                content = ''.join(
+                                    block.get('text', '') for block in raw_content
+                                    if isinstance(block, dict) and block.get('type') == 'text'
+                                )
+                            else:
+                                content = str(raw_content) if raw_content else ''
                             if content:
                                 accumulated_text += content
                                 yield {"type": "content", "content": content}
 
                         elif msg_type == 'result':
                             # 最终结果
-                            result_text = obj.get('result', '')
+                            raw_result = obj.get('result', '')
+                            if isinstance(raw_result, list):
+                                result_text = ''.join(
+                                    block.get('text', '') for block in raw_result
+                                    if isinstance(block, dict) and block.get('type') == 'text'
+                                )
+                            else:
+                                result_text = str(raw_result) if raw_result else ''
                             if result_text and not accumulated_text:
                                 yield {"type": "content", "content": result_text}
                             # result 之后一般就结束了
@@ -1765,12 +1895,23 @@ class AIClient:
 
                 proc.wait(timeout=300)
 
+                # 只在完全没有输出的情况下才报错
+                # 如果有 accumulated_text，说明 CLI 已正常输出了回答，
+                # 退出码非零大概率是 libuv 清理崩溃，静默忽略
                 if proc.returncode != 0 and not accumulated_text:
-                    stderr_output = proc.stderr.read() if proc.stderr else ''
-                    yield {
-                        "type": "error",
-                        "error": f"CodeBuddy CLI 退出码 {proc.returncode}: {stderr_output.strip()}"
-                    }
+                    stderr_output = ''.join(stderr_lines).strip()
+                    # 过滤 libuv assertion 噪音，给友好提示
+                    if 'UV_HANDLE_CLOSING' in stderr_output:
+                        print(f"[AI Client] CodeBuddy CLI libuv crash (no output), rc={proc.returncode}")
+                        yield {
+                            "type": "error",
+                            "error": "CodeBuddy CLI 进程异常终止，请重试。"
+                        }
+                    else:
+                        yield {
+                            "type": "error",
+                            "error": f"CodeBuddy CLI 退出码 {proc.returncode}: {stderr_output[:500]}"
+                        }
                     return
 
             finally:
@@ -1784,10 +1925,14 @@ class AIClient:
             yield {"type": "done", "finish_reason": "stop"}
 
         except FileNotFoundError:
-            yield {"type": "error", "error": f"CodeBuddy CLI 不存在: {cli_path}"}
+            yield {"type": "error", "error": f"CodeBuddy CLI 不存在: {cli_display}"}
         except Exception as e:
-            print(f"[AI Client] CodeBuddy CLI error: {e}")
-            yield {"type": "error", "error": f"CodeBuddy CLI 错误: {str(e)}"}
+            safe_msg = str(e).encode('utf-8', errors='replace').decode('utf-8', errors='replace')
+            try:
+                print(f"[AI Client] CodeBuddy CLI error: {safe_msg}")
+            except Exception:
+                pass  # print 本身失败时不再抛异常
+            yield {"type": "error", "error": f"CodeBuddy CLI 错误: {safe_msg}"}
 
     # ============================================================
     # Anthropic Messages 协议适配层

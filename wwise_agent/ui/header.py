@@ -48,7 +48,7 @@ class HeaderMixin:
             'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
             'glm': ['glm-4.7'],
             'openai': ['gpt-5.2', 'gpt-5.3-codex'],
-            'codebuddy_cli': ['deepseek-v3.1', 'gemini-3.0-pro', 'claude-4-5-sonnet', 'gpt-4o'],
+            'codebuddy_cli': ['claude-sonnet-4.6 (Default)', 'claude-opus-4.6 (Opus)', 'glm-4.7 (Haiku)'],
             'duojie': [
                 'claude-sonnet-4-5',
                 'claude-opus-4-5-kiro',
@@ -85,11 +85,10 @@ class HeaderMixin:
             'glm-4.7': 200000,
             'gpt-5.2': 128000,
             'gpt-5.3-codex': 200000,
-            # CodeBuddy (通过 CODEBUDDY_API_KEY 平台认证)
-            'deepseek-v3.1': 128000,
-            'gemini-3.0-pro': 200000,
-            'claude-3-5-sonnet': 200000,
-            'gpt-4o': 128000,
+            # CodeBuddy (通过 claude-internal CLI 调用)
+            'claude-sonnet-4.6 (Default)': 200000,
+            'claude-opus-4.6 (Opus)': 200000,
+            'glm-4.7 (Haiku)': 128000,
             # Duojie 模型
             'claude-sonnet-4-5': 200000,
             'claude-opus-4-5-kiro': 200000,
@@ -125,11 +124,10 @@ class HeaderMixin:
             'glm-4.7':                    {'supports_prompt_caching': True, 'supports_vision': False},
             'gpt-5.2':                    {'supports_prompt_caching': True, 'supports_vision': True},
             'gpt-5.3-codex':              {'supports_prompt_caching': True, 'supports_vision': True},
-            # CodeBuddy (CODEBUDDY_API_KEY 平台认证)
-            'deepseek-v3.1':              {'supports_prompt_caching': True, 'supports_vision': False},
-            'gemini-3.0-pro':             {'supports_prompt_caching': True, 'supports_vision': True},
-            'claude-3-5-sonnet':          {'supports_prompt_caching': True, 'supports_vision': True},
-            'gpt-4o':                     {'supports_prompt_caching': True, 'supports_vision': True},
+            # CodeBuddy (claude-internal CLI)
+            'claude-sonnet-4.6 (Default)': {'supports_prompt_caching': True, 'supports_vision': True},
+            'claude-opus-4.6 (Opus)':      {'supports_prompt_caching': True, 'supports_vision': True},
+            'glm-4.7 (Haiku)':            {'supports_prompt_caching': True, 'supports_vision': False},
             'claude-sonnet-4-5':          {'supports_prompt_caching': True, 'supports_vision': True},
             'claude-opus-4-5-kiro':       {'supports_prompt_caching': True, 'supports_vision': True},
             'claude-opus-4-5-max':        {'supports_prompt_caching': True, 'supports_vision': True},

@@ -2509,7 +2509,10 @@ Memory System:
                 self._agentStopped.emit()
             else:
                 error_detail = f"{type(e).__name__}: {str(e)}"
-                print(f"[AI Tab Error] {traceback.format_exc()}")
+                try:
+                    print(f"[AI Tab Error] {traceback.format_exc()}")
+                except Exception:
+                    pass  # GBK 终端下 print 失败时静默忽略
                 self._agentError.emit(error_detail)
 
     def _add_tool_result(self, name: str, result: dict, arguments: dict = None):
